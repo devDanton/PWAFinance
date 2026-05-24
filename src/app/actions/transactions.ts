@@ -16,10 +16,9 @@ export async function createTransaction(formData: FormData) {
   const date = formData.get('date') as string
   const description = formData.get('description') as string
   const category = formData.get('category') as string
-
   const credit_card_id = formData.get('credit_card_id') as string | null
   const installments = parseInt(formData.get('installments') as string, 10) || 1
-  const is_paid = formData.get('is_paid') === 'true'
+  const is_paid = formData.get('is_paid') === 'true' || formData.get('is_paid') === 'on'
 
   const data = {
     workspace_id,
@@ -82,10 +81,9 @@ export async function updateTransaction(id: string, formData: FormData) {
   const date = formData.get('date') as string
   const description = formData.get('description') as string
   const category = formData.get('category') as string
-  
   const credit_card_id = formData.get('credit_card_id') as string | null
   const installments = parseInt(formData.get('installments') as string, 10) || 1
-  const is_paid = formData.get('is_paid') === 'true'
+  const is_paid = formData.get('is_paid') === 'true' || formData.get('is_paid') === 'on'
 
   const data = {
     workspace_id,

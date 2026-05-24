@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
 
 export function TransactionList({ 
   initialTransactions, 
@@ -139,6 +140,11 @@ export function TransactionList({
                   <Label htmlFor="installments">Parcelas</Label>
                   <Input id="installments" name="installments" type="number" min="1" defaultValue={editingTx?.installments || 1} required />
                 </div>
+
+                <div className="flex items-center space-x-2 pt-2">
+                  <Checkbox id="is_paid" name="is_paid" value="on" defaultChecked={editingTx ? editingTx.is_paid : false} />
+                  <Label htmlFor="is_paid" className="cursor-pointer">Transação paga / concluída</Label>
+                </div>
               </div>
               <DialogFooter>
                 <Button type="submit" disabled={loading}>
@@ -191,14 +197,15 @@ export function TransactionList({
                       {tx.credit_cards && <div className="text-xs text-muted-foreground">{tx.credit_cards.name}</div>}
                     </TableCell>
                     <TableCell>
-                      <Button 
-                        variant={tx.is_paid ? "default" : "outline"} 
-                        size="sm" 
-                        onClick={() => handleTogglePaid(tx.id, tx.is_paid)}
-                        className={`h-7 px-2 text-xs ${tx.is_paid ? 'bg-emerald-500 hover:bg-emerald-600' : ''}`}
-                      >
-                        {tx.is_paid ? 'Pago' : 'Pendente'}
-                      </Button>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox 
+                          checked={tx.is_paid} 
+                          onCheckedChange={() => handleTogglePaid(tx.id, tx.is_paid)} 
+                        />
+                        <span className={`text-sm ${tx.is_paid ? 'text-emerald-500 font-medium' : 'text-muted-foreground'}`}>
+                          {tx.is_paid ? 'Pago' : 'Pendente'}
+                        </span>
+                      </div>
                     </TableCell>
                     <TableCell className={`text-right font-bold ${isIncome ? 'text-emerald-500' : ''}`}>
                       {isIncome ? '+' : '-'}{formattedAmount}
