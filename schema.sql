@@ -193,6 +193,7 @@ CREATE TABLE transactions (
   type TEXT NOT NULL CHECK (type IN ('income', 'expense')),
   amount DECIMAL(12, 2) NOT NULL,
   date DATE NOT NULL,
+  due_date DATE,
   description TEXT NOT NULL,
   category TEXT NOT NULL,
   credit_card_id UUID REFERENCES credit_cards(id) ON DELETE SET NULL,

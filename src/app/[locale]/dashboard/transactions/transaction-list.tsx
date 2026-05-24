@@ -107,8 +107,14 @@ export function TransactionList({
                 </div>
 
                 <div className="grid gap-2">
-                  <Label htmlFor="date">Data</Label>
+                  <Label htmlFor="date">Data da Compra</Label>
                   <Input id="date" name="date" type="date" required defaultValue={editingTx?.date || new Date().toISOString().split('T')[0]} />
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="due_date">Data de Vencimento (Opcional)</Label>
+                  <Input id="due_date" name="due_date" type="date" defaultValue={editingTx?.due_date} />
+                  <span className="text-[10px] text-muted-foreground leading-tight">Deixe em branco para calcular automaticamente com base no cartão, ou igualar à compra.</span>
                 </div>
 
                 <div className="grid gap-2">
@@ -160,7 +166,7 @@ export function TransactionList({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Data</TableHead>
+              <TableHead>Datas</TableHead>
               <TableHead>Descrição</TableHead>
               <TableHead>Categoria</TableHead>
               <TableHead>Workspace / Cartão</TableHead>
@@ -183,7 +189,14 @@ export function TransactionList({
                 
                 return (
                   <TableRow key={tx.id}>
-                    <TableCell>{format(new Date(tx.date), 'dd/MM/yyyy')}</TableCell>
+                    <TableCell>
+                      <div className="flex flex-col">
+                        <span className="font-medium">{tx.due_date ? format(new Date(tx.due_date), 'dd/MM/yyyy') : format(new Date(tx.date), 'dd/MM/yyyy')}</span>
+                        {tx.due_date && tx.due_date !== tx.date && (
+                          <span className="text-xs text-muted-foreground">Compra: {format(new Date(tx.date), 'dd/MM/yyyy')}</span>
+                        )}
+                      </div>
+                    </TableCell>
                     <TableCell className="font-medium">
                       <div className="flex items-center gap-2">
                         {isIncome ? <ArrowUpCircle className="h-4 w-4 text-emerald-500" /> : <ArrowDownCircle className="h-4 w-4 text-rose-500" />}
