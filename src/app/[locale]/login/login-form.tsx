@@ -99,6 +99,7 @@ export function LoginForm() {
             {loading ? 'Aguarde...' : (isLogin ? 'Entrar' : 'Criar Conta')}
           </Button>
 
+          {/* Registro desabilitado temporariamente para uso pessoal 
           <div className="text-center text-sm">
             <span className="text-muted-foreground">
               {isLogin ? 'Não tem uma conta? ' : 'Já possui uma conta? '}
@@ -111,6 +112,7 @@ export function LoginForm() {
               {isLogin ? 'Cadastre-se' : 'Faça login'}
             </button>
           </div>
+          */}
         </CardFooter>
       </form>
     </Card>
