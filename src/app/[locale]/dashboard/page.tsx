@@ -1,5 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ReceiptText, CreditCard, Users } from 'lucide-react';
+import Link from 'next/link';
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -9,10 +12,55 @@ export default async function DashboardPage() {
     redirect('/pt/login');
   }
 
+  // Fetch basic metrics
+  const { count: workspacesCount } = await supabase.from('workspaces').select('*', { count: 'exact', head: true });
+  const { count: cardsCount } = await supabase.from('credit_cards').select('*', { count: 'exact', head: true });
+  const { count: txCount } = await supabase.from('transactions').select('*', { count: 'exact', head: true });
+
   return (
-    <div className="p-8">
-      <h1 className="text-3xl font-bold">Dashboard</h1>
-      <p className="mt-4">Bem-vindo, {user.user_metadata?.first_name || user.email}</p>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+        <p className="mt-2 text-muted-foreground">
+          Bem-vindo de volta, {user.user_metadata?.first_name || user.email}! Aqui está o seu resumo.
+        </p>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <Link href="/dashboard/workspaces" className="transition-transform hover:scale-[1.02]">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Workspaces Ativos</CardTitle>
+              <Users className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{workspacesCount || 0}</div>
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/dashboard/cards" className="transition-transform hover:scale-[1.02]">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Cartões de Crédito</CardTitle>
+              <CreditCard className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{cardsCount || 0}</div>
+            </CardContent>
+          </Card>
+        </Link>
+        <Link href="/dashboard/transactions" className="transition-transform hover:scale-[1.02]">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Transações Lançadas</CardTitle>
+              <ReceiptText className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{txCount || 0}</div>
+            </CardContent>
+          </Card>
+        </Link>
+      </div>
     </div>
   );
 }
