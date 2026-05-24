@@ -159,6 +159,7 @@ CREATE TABLE credit_cards (
   total_limit DECIMAL(12, 2) NOT NULL,
   closing_day INTEGER NOT NULL CHECK (closing_day >= 1 AND closing_day <= 31),
   due_day INTEGER NOT NULL CHECK (due_day >= 1 AND due_day <= 31),
+  color TEXT DEFAULT '#000000',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 

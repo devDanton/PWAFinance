@@ -85,15 +85,33 @@ export async function createTransaction(formData: FormData) {
   return { success: true }
 }
 
-export async function deleteTransaction(id: string) {
+export async function deleteTransaction(id: string, deleteAll: boolean = false) {
   const supabase = await createClient()
 
-  const { error } = await supabase
-    .from('transactions')
-    .delete()
-    .eq('id', id)
+  if (deleteAll) {
+    const { data: tx, error: fetchError } = await supabase
+      .from('transactions')
+      .select('created_at, created_by')
+      .eq('id', id)
+      .single()
 
-  if (error) return { error: error.message }
+    if (fetchError || !tx) return { error: fetchError?.message || 'Transaction not found' }
+
+    const { error } = await supabase
+      .from('transactions')
+      .delete()
+      .eq('created_at', tx.created_at)
+      .eq('created_by', tx.created_by)
+
+    if (error) return { error: error.message }
+  } else {
+    const { error } = await supabase
+      .from('transactions')
+      .delete()
+      .eq('id', id)
+
+    if (error) return { error: error.message }
+  }
 
   revalidatePath('/dashboard/transactions')
   return { success: true }

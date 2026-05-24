@@ -22,7 +22,7 @@ export default async function DashboardPage() {
       <div>
         <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
         <p className="mt-2 text-muted-foreground">
-          Bem-vindo de volta, {user.user_metadata?.first_name || user.email}! Aqui está o seu resumo.
+          Bem-vindo(a) de volta, {user.user_metadata?.first_name || user.email}! Aqui está o seu resumo.
         </p>
       </div>
 

@@ -25,6 +25,19 @@ export function TransactionList({
   const [loading, setLoading] = useState(false)
   const [selectedWorkspace, setSelectedWorkspace] = useState(workspaces[0]?.id || '')
   const [editingTx, setEditingTx] = useState<any>(null)
+  const [deletingTx, setDeletingTx] = useState<any>(null)
+  const [searchTerm, setSearchTerm] = useState('')
+
+  const filteredTransactions = initialTransactions.filter((tx) => {
+    if (!searchTerm) return true
+    const searchLower = searchTerm.toLowerCase()
+    return (
+      tx.description?.toLowerCase().includes(searchLower) ||
+      tx.category?.toLowerCase().includes(searchLower) ||
+      tx.workspaces?.name?.toLowerCase().includes(searchLower) ||
+      (tx.credit_cards?.name && tx.credit_cards.name.toLowerCase().includes(searchLower))
+    )
+  })
 
   const filteredCards = cards.filter(c => c.workspace_id === selectedWorkspace)
 
@@ -46,10 +59,22 @@ export function TransactionList({
     setOpen(true)
   }
 
-  async function handleDelete(id: string) {
-    if (confirm('Tem certeza que deseja deletar esta transação?')) {
-      await deleteTransaction(id)
+  function confirmDelete(tx: any) {
+    const isInstallment = /\(\d+\/\d+\)$/.test(tx.description)
+    if (isInstallment) {
+      setDeletingTx(tx)
+    } else {
+      if (confirm('Tem certeza que deseja deletar esta transação?')) {
+        handleDelete(tx.id, false)
+      }
     }
+  }
+
+  async function handleDelete(id: string, deleteAll: boolean) {
+    setLoading(true)
+    await deleteTransaction(id, deleteAll)
+    setLoading(false)
+    setDeletingTx(null)
   }
 
   async function handleTogglePaid(id: string, currentStatus: boolean) {
@@ -58,7 +83,13 @@ export function TransactionList({
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <Input 
+          placeholder="Filtrar por descrição ou categoria..." 
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="max-w-sm"
+        />
         <Dialog open={open} onOpenChange={(val) => { setOpen(val); if (!val) setEditingTx(null); }}>
           <DialogTrigger asChild>
             <Button disabled={workspaces.length === 0} onClick={() => setEditingTx(null)}>
@@ -108,7 +139,7 @@ export function TransactionList({
 
                 <div className="grid gap-2">
                   <Label htmlFor="date">Data da Compra</Label>
-                  <Input id="date" name="date" type="date" required defaultValue={editingTx?.date || new Date().toISOString().split('T')[0]} />
+                  <Input id="date" name="date" type="date" required defaultValue={editingTx?.date || format(new Date(), 'yyyy-MM-dd')} />
                 </div>
 
                 <div className="grid gap-2">
@@ -160,6 +191,22 @@ export function TransactionList({
             </form>
           </DialogContent>
         </Dialog>
+
+        <Dialog open={!!deletingTx} onOpenChange={(val) => { if (!val) setDeletingTx(null); }}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Deletar Transação Parcelada</DialogTitle>
+              <DialogDescription>
+                Esta transação faz parte de um parcelamento. Você deseja deletar apenas esta parcela ou todas as parcelas associadas?
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter className="flex flex-col sm:flex-row gap-2 mt-4">
+              <Button variant="outline" onClick={() => setDeletingTx(null)} disabled={loading}>Cancelar</Button>
+              <Button variant="destructive" onClick={() => handleDelete(deletingTx.id, false)} disabled={loading}>Apenas esta</Button>
+              <Button variant="destructive" onClick={() => handleDelete(deletingTx.id, true)} disabled={loading}>Deletar todas</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
 
       <div className="rounded-md border bg-card text-card-foreground shadow-sm">
@@ -176,14 +223,14 @@ export function TransactionList({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {initialTransactions.length === 0 ? (
+            {filteredTransactions.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={7} className="text-center text-muted-foreground h-24">
-                  Nenhuma transação lançada.
+                  Nenhuma transação encontrada.
                 </TableCell>
               </TableRow>
             ) : (
-              initialTransactions.map((tx) => {
+              filteredTransactions.map((tx) => {
                 const isIncome = tx.type === 'income'
                 const formattedAmount = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(tx.amount)
                 
@@ -191,9 +238,9 @@ export function TransactionList({
                   <TableRow key={tx.id}>
                     <TableCell>
                       <div className="flex flex-col">
-                        <span className="font-medium">{tx.due_date ? format(new Date(tx.due_date), 'dd/MM/yyyy') : format(new Date(tx.date), 'dd/MM/yyyy')}</span>
+                        <span className="font-medium">{tx.due_date ? format(new Date(tx.due_date + 'T12:00:00'), 'dd/MM/yyyy') : format(new Date(tx.date + 'T12:00:00'), 'dd/MM/yyyy')}</span>
                         {tx.due_date && tx.due_date !== tx.date && (
-                          <span className="text-xs text-muted-foreground">Compra: {format(new Date(tx.date), 'dd/MM/yyyy')}</span>
+                          <span className="text-xs text-muted-foreground">Compra: {format(new Date(tx.date + 'T12:00:00'), 'dd/MM/yyyy')}</span>
                         )}
                       </div>
                     </TableCell>
@@ -228,7 +275,7 @@ export function TransactionList({
                         <Button variant="ghost" size="icon" onClick={() => handleEdit(tx)} className="text-muted-foreground h-8 w-8">
                           <Pencil className="h-4 w-4" />
                         </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(tx.id)} className="text-destructive h-8 w-8">
+                        <Button variant="ghost" size="icon" onClick={() => confirmDelete(tx)} className="text-destructive h-8 w-8">
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>

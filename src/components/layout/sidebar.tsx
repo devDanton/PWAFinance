@@ -26,7 +26,9 @@ export function Sidebar() {
       <div className="flex-1 overflow-auto py-2">
         <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
           {navItems.map((item) => {
-            const isActive = pathname === item.href || pathname.startsWith(`${item.href}/`)
+            const isActive = item.href === "/dashboard" 
+              ? pathname === item.href 
+              : pathname === item.href || pathname.startsWith(`${item.href}/`)
             return (
               <Link
                 key={item.name}

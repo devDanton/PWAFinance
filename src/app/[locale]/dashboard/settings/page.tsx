@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card'
 import { LogoutButton } from '@/components/logout-button'
+import { ProfileForm } from './profile-form'
 
 export default async function SettingsPage() {
   const supabase = await createClient()
@@ -21,14 +22,10 @@ export default async function SettingsPage() {
           <CardDescription>Informações básicas da sua conta no PWAFinance.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-1">
-            <p className="text-sm font-medium">Nome</p>
-            <p className="text-sm text-muted-foreground">{user?.user_metadata?.first_name || 'Não informado'}</p>
-          </div>
-          <div className="space-y-1">
-            <p className="text-sm font-medium">E-mail</p>
-            <p className="text-sm text-muted-foreground">{user?.email}</p>
-          </div>
+          <ProfileForm 
+            initialName={user?.user_metadata?.first_name || ''} 
+            email={user?.email || ''} 
+          />
         </CardContent>
         <CardFooter className="border-t px-6 py-4">
           <LogoutButton />
