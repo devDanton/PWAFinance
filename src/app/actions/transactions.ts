@@ -66,6 +66,47 @@ export async function toggleTransactionPaid(id: string, is_paid: boolean) {
 
   if (error) return { error: error.message }
 
-  revalidatePath('/dashboard/transactions')
+  revalidatePath('/', 'layout')
+  return { success: true }
+}
+
+export async function updateTransaction(id: string, formData: FormData) {
+  const supabase = await createClient()
+  
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Não autenticado' }
+
+  const workspace_id = formData.get('workspace_id') as string
+  const type = formData.get('type') as 'income' | 'expense'
+  const amount = parseFloat(formData.get('amount') as string)
+  const date = formData.get('date') as string
+  const description = formData.get('description') as string
+  const category = formData.get('category') as string
+  
+  const credit_card_id = formData.get('credit_card_id') as string | null
+  const installments = parseInt(formData.get('installments') as string, 10) || 1
+  const is_paid = formData.get('is_paid') === 'true'
+
+  const data = {
+    workspace_id,
+    type,
+    amount,
+    date,
+    description,
+    category,
+    credit_card_id: credit_card_id && credit_card_id !== 'none' ? credit_card_id : null,
+    installments,
+    is_paid,
+  }
+
+  const { error } = await supabase
+    .from('transactions')
+    .update(data)
+    .eq('id', id)
+    .eq('created_by', user.id)
+
+  if (error) return { error: error.message }
+  
+  revalidatePath('/', 'layout')
   return { success: true }
 }

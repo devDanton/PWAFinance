@@ -18,9 +18,9 @@ export function LoginForm() {
   async function onSubmit(formData: FormData) {
     setLoading(true)
     setError(null)
-    
+
     const result = isLogin ? await login(formData) : await signup(formData)
-    
+
     if (result?.error) {
       setError(result.error)
       setLoading(false)
@@ -34,8 +34,8 @@ export function LoginForm() {
           {isLogin ? 'Entrar' : 'Criar Conta'}
         </CardTitle>
         <CardDescription className="text-center text-muted-foreground">
-          {isLogin 
-            ? 'Insira suas credenciais para acessar seu Workspace' 
+          {isLogin
+            ? 'Insira suas credenciais para acessar seu Workspace'
             : 'Preencha os dados abaixo para começar a usar o PWAFinance'}
         </CardDescription>
       </CardHeader>
@@ -46,15 +46,15 @@ export function LoginForm() {
               {error}
             </div>
           )}
-          
+
           {!isLogin && (
             <div className="space-y-2">
               <Label htmlFor="first_name">Nome Completo</Label>
-              <Input 
-                id="first_name" 
-                name="first_name" 
-                placeholder="Seu nome" 
-                required 
+              <Input
+                id="first_name"
+                name="first_name"
+                placeholder="Seu nome"
+                required
                 className="transition-all focus-visible:ring-primary/50"
               />
             </div>
@@ -62,16 +62,16 @@ export function LoginForm() {
 
           <div className="space-y-2">
             <Label htmlFor="email">E-mail</Label>
-            <Input 
-              id="email" 
-              name="email" 
-              type="email" 
-              placeholder="exemplo@email.com" 
-              required 
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              placeholder="exemplo@email.com"
+              required
               className="transition-all focus-visible:ring-primary/50"
             />
           </div>
-          
+
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label htmlFor="password">Senha</Label>
@@ -81,24 +81,24 @@ export function LoginForm() {
                 </a>
               )}
             </div>
-            <Input 
-              id="password" 
-              name="password" 
-              type="password" 
-              required 
+            <Input
+              id="password"
+              name="password"
+              type="password"
+              required
               className="transition-all focus-visible:ring-primary/50"
             />
           </div>
         </CardContent>
         <CardFooter className="flex flex-col space-y-4">
-          <Button 
-            type="submit" 
-            className="w-full font-semibold transition-all hover:scale-[1.02] active:scale-[0.98]" 
+          <Button
+            type="submit"
+            className="w-full font-semibold transition-all hover:scale-[1.02] active:scale-[0.98]"
             disabled={loading}
           >
             {loading ? 'Aguarde...' : (isLogin ? 'Entrar' : 'Criar Conta')}
           </Button>
-          
+
           <div className="text-center text-sm">
             <span className="text-muted-foreground">
               {isLogin ? 'Não tem uma conta? ' : 'Já possui uma conta? '}

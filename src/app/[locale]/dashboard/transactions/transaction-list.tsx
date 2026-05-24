@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Trash2, ArrowDownCircle, ArrowUpCircle } from 'lucide-react'
+import { Plus, Trash2, ArrowDownCircle, ArrowUpCircle, Pencil } from 'lucide-react'
 import { format } from 'date-fns'
-import { createTransaction, deleteTransaction, toggleTransactionPaid } from '@/app/actions/transactions'
+import { createTransaction, deleteTransaction, toggleTransactionPaid, updateTransaction } from '@/app/actions/transactions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -23,14 +23,26 @@ export function TransactionList({
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [selectedWorkspace, setSelectedWorkspace] = useState(workspaces[0]?.id || '')
+  const [editingTx, setEditingTx] = useState<any>(null)
 
   const filteredCards = cards.filter(c => c.workspace_id === selectedWorkspace)
 
-  async function handleCreate(formData: FormData) {
+  async function handleSave(formData: FormData) {
     setLoading(true)
-    await createTransaction(formData)
+    if (editingTx) {
+      await updateTransaction(editingTx.id, formData)
+    } else {
+      await createTransaction(formData)
+    }
     setLoading(false)
     setOpen(false)
+    setEditingTx(null)
+  }
+
+  function handleEdit(tx: any) {
+    setEditingTx(tx)
+    setSelectedWorkspace(tx.workspace_id)
+    setOpen(true)
   }
 
   async function handleDelete(id: string) {
@@ -46,18 +58,18 @@ export function TransactionList({
   return (
     <div className="space-y-4">
       <div className="flex justify-end">
-        <Dialog open={open} onOpenChange={setOpen}>
+        <Dialog open={open} onOpenChange={(val) => { setOpen(val); if (!val) setEditingTx(null); }}>
           <DialogTrigger asChild>
-            <Button disabled={workspaces.length === 0}>
+            <Button disabled={workspaces.length === 0} onClick={() => setEditingTx(null)}>
               <Plus className="mr-2 h-4 w-4" /> Nova Transação
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-[425px]">
-            <form action={handleCreate}>
+            <form action={handleSave} key={editingTx ? editingTx.id : 'new'}>
               <DialogHeader>
-                <DialogTitle>Lançar Transação</DialogTitle>
+                <DialogTitle>{editingTx ? 'Editar Transação' : 'Lançar Transação'}</DialogTitle>
                 <DialogDescription>
-                  Insira os dados da nova receita ou despesa.
+                  {editingTx ? 'Atualize os dados da transação selecionada.' : 'Insira os dados da nova receita ou despesa.'}
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto px-1">
@@ -77,7 +89,7 @@ export function TransactionList({
                 
                 <div className="grid gap-2">
                   <Label htmlFor="type">Tipo</Label>
-                  <Select name="type" defaultValue="expense" required>
+                  <Select name="type" defaultValue={editingTx?.type || "expense"} required>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
@@ -90,27 +102,27 @@ export function TransactionList({
 
                 <div className="grid gap-2">
                   <Label htmlFor="amount">Valor (R$)</Label>
-                  <Input id="amount" name="amount" type="number" step="0.01" placeholder="0.00" required />
+                  <Input id="amount" name="amount" type="number" step="0.01" placeholder="0.00" defaultValue={editingTx?.amount} required />
                 </div>
 
                 <div className="grid gap-2">
                   <Label htmlFor="date">Data</Label>
-                  <Input id="date" name="date" type="date" required defaultValue={new Date().toISOString().split('T')[0]} />
+                  <Input id="date" name="date" type="date" required defaultValue={editingTx?.date || new Date().toISOString().split('T')[0]} />
                 </div>
 
                 <div className="grid gap-2">
                   <Label htmlFor="description">Descrição</Label>
-                  <Input id="description" name="description" placeholder="Ex: Supermercado" required />
+                  <Input id="description" name="description" placeholder="Ex: Supermercado" defaultValue={editingTx?.description} required />
                 </div>
 
                 <div className="grid gap-2">
                   <Label htmlFor="category">Categoria</Label>
-                  <Input id="category" name="category" placeholder="Ex: Alimentação" required />
+                  <Input id="category" name="category" placeholder="Ex: Alimentação" defaultValue={editingTx?.category} required />
                 </div>
 
                 <div className="grid gap-2">
                   <Label htmlFor="credit_card_id">Cartão de Crédito (Opcional)</Label>
-                  <Select name="credit_card_id">
+                  <Select name="credit_card_id" defaultValue={editingTx?.credit_card_id || "none"}>
                     <SelectTrigger>
                       <SelectValue placeholder="Nenhum" />
                     </SelectTrigger>
@@ -125,7 +137,7 @@ export function TransactionList({
 
                 <div className="grid gap-2">
                   <Label htmlFor="installments">Parcelas</Label>
-                  <Input id="installments" name="installments" type="number" min="1" defaultValue="1" required />
+                  <Input id="installments" name="installments" type="number" min="1" defaultValue={editingTx?.installments || 1} required />
                 </div>
               </div>
               <DialogFooter>
@@ -192,9 +204,14 @@ export function TransactionList({
                       {isIncome ? '+' : '-'}{formattedAmount}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => handleDelete(tx.id)} className="text-destructive h-8 w-8">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center justify-end gap-2">
+                        <Button variant="ghost" size="icon" onClick={() => handleEdit(tx)} className="text-muted-foreground h-8 w-8">
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => handleDelete(tx.id)} className="text-destructive h-8 w-8">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 )
