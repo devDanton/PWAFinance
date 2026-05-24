@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
+import { SubmitButton } from '@/components/ui/submit-button'
 
 export function TransactionList({ 
   initialTransactions, 
@@ -22,7 +23,6 @@ export function TransactionList({
   cards: any[] 
 }) {
   const [open, setOpen] = useState(false)
-  const [loading, setLoading] = useState(false)
   const [selectedWorkspace, setSelectedWorkspace] = useState(workspaces[0]?.id || '')
   const [editingTx, setEditingTx] = useState<any>(null)
   const [deletingTx, setDeletingTx] = useState<any>(null)
@@ -42,13 +42,11 @@ export function TransactionList({
   const filteredCards = cards.filter(c => c.workspace_id === selectedWorkspace)
 
   async function handleSave(formData: FormData) {
-    setLoading(true)
     if (editingTx) {
       await updateTransaction(editingTx.id, formData)
     } else {
       await createTransaction(formData)
     }
-    setLoading(false)
     setOpen(false)
     setEditingTx(null)
   }
@@ -71,9 +69,7 @@ export function TransactionList({
   }
 
   async function handleDelete(id: string, deleteAll: boolean) {
-    setLoading(true)
     await deleteTransaction(id, deleteAll)
-    setLoading(false)
     setDeletingTx(null)
   }
 
@@ -184,9 +180,7 @@ export function TransactionList({
                 </div>
               </div>
               <DialogFooter>
-                <Button type="submit" disabled={loading}>
-                  {loading ? 'Salvando...' : 'Salvar'}
-                </Button>
+                <SubmitButton pendingText="Salvando...">Salvar</SubmitButton>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -201,9 +195,9 @@ export function TransactionList({
               </DialogDescription>
             </DialogHeader>
             <DialogFooter className="flex flex-col sm:flex-row gap-2 mt-4">
-              <Button variant="outline" onClick={() => setDeletingTx(null)} disabled={loading}>Cancelar</Button>
-              <Button variant="destructive" onClick={() => handleDelete(deletingTx.id, false)} disabled={loading}>Apenas esta</Button>
-              <Button variant="destructive" onClick={() => handleDelete(deletingTx.id, true)} disabled={loading}>Deletar todas</Button>
+              <Button variant="outline" onClick={() => setDeletingTx(null)}>Cancelar</Button>
+              <Button variant="destructive" onClick={() => handleDelete(deletingTx.id, false)}>Apenas esta</Button>
+              <Button variant="destructive" onClick={() => handleDelete(deletingTx.id, true)}>Deletar todas</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

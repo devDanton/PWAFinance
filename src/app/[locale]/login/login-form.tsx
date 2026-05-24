@@ -3,9 +3,9 @@
 import { useState } from 'react'
 import { useTranslations } from 'next-intl'
 import { login, signup } from '@/app/actions/auth'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { SubmitButton } from '@/components/ui/submit-button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
 import { useRouter } from '@/i18n/routing'
 
@@ -16,14 +16,10 @@ export function LoginForm() {
   const [loading, setLoading] = useState(false)
 
   async function onSubmit(formData: FormData) {
-    setLoading(true)
     setError(null)
-
     const result = isLogin ? await login(formData) : await signup(formData)
-
     if (result?.error) {
       setError(result.error)
-      setLoading(false)
     }
   }
 
@@ -91,13 +87,12 @@ export function LoginForm() {
           </div>
         </CardContent>
         <CardFooter className="flex flex-col space-y-4">
-          <Button
-            type="submit"
+          <SubmitButton
             className="w-full font-semibold transition-all hover:scale-[1.02] active:scale-[0.98]"
-            disabled={loading}
+            pendingText="Aguarde..."
           >
-            {loading ? 'Aguarde...' : (isLogin ? 'Entrar' : 'Criar Conta')}
-          </Button>
+            {isLogin ? 'Entrar' : 'Criar Conta'}
+          </SubmitButton>
 
           {/* Registro desabilitado temporariamente para uso pessoal 
           <div className="text-center text-sm">

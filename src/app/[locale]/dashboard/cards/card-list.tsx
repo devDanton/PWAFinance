@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { SubmitButton } from '@/components/ui/submit-button'
 
 function getContrastColor(hexColor: string) {
   if (!hexColor) return '#ffffff';
@@ -23,17 +24,14 @@ function getContrastColor(hexColor: string) {
 
 export function CardList({ initialCards, workspaces }: { initialCards: any[], workspaces: any[] }) {
   const [open, setOpen] = useState(false)
-  const [loading, setLoading] = useState(false)
   const [editingCard, setEditingCard] = useState<any>(null)
 
   async function handleSave(formData: FormData) {
-    setLoading(true)
     if (editingCard) {
       await updateCard(editingCard.id, formData)
     } else {
       await createCard(formData)
     }
-    setLoading(false)
     setOpen(false)
     setEditingCard(null)
   }
@@ -106,9 +104,7 @@ export function CardList({ initialCards, workspaces }: { initialCards: any[], wo
                 </div>
               </div>
               <DialogFooter>
-                <Button type="submit" disabled={loading}>
-                  {loading ? 'Salvando...' : 'Salvar'}
-                </Button>
+                <SubmitButton pendingText="Salvando...">Salvar</SubmitButton>
               </DialogFooter>
             </form>
           </DialogContent>

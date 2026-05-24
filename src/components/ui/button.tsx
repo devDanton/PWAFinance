@@ -41,17 +41,41 @@ const buttonVariants = cva(
   }
 )
 
+import { Loader2 } from "lucide-react"
+
 function Button({
   className,
   variant = "default",
   size = "default",
   asChild = false,
+  loading = false,
+  disabled,
+  onClick,
+  children,
   ...props
 }: React.ComponentProps<"button"> &
   VariantProps<typeof buttonVariants> & {
     asChild?: boolean
+    loading?: boolean
   }) {
+  const [isPending, setIsPending] = React.useState(false)
   const Comp = asChild ? Slot.Root : "button"
+
+  const handleClick = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (onClick) {
+      const result = onClick(e)
+      if (result instanceof Promise) {
+        setIsPending(true)
+        try {
+          await result
+        } finally {
+          setIsPending(false)
+        }
+      }
+    }
+  }
+
+  const isLoading = loading || isPending
 
   return (
     <Comp
@@ -59,8 +83,13 @@ function Button({
       data-variant={variant}
       data-size={size}
       className={cn(buttonVariants({ variant, size, className }))}
+      disabled={disabled || isLoading}
+      onClick={asChild ? onClick : handleClick}
       {...props}
-    />
+    >
+      {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+      {children}
+    </Comp>
   )
 }
 
