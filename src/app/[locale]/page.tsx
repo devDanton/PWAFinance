@@ -1,5 +1,4 @@
-import { useTranslations } from 'next-intl';
-import { setRequestLocale } from 'next-intl/server';
+import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { Button } from '@/components/ui/button';
 
 export default async function Home({
@@ -9,7 +8,7 @@ export default async function Home({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
-  const t = await useTranslations('Common');
+  const t = await getTranslations('Common');
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
