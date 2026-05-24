@@ -84,11 +84,17 @@ ALTER TABLE workspace_members ENABLE ROW LEVEL SECURITY;
 -- ==========================================
 -- Policies for Workspaces (Created after members to avoid errors)
 -- ==========================================
+-- Function to get workspaces a user is a member of (bypasses RLS to avoid infinite recursion)
+CREATE OR REPLACE FUNCTION public.get_user_workspaces()
+RETURNS SETOF uuid AS $$
+  SELECT workspace_id FROM public.workspace_members WHERE user_id = auth.uid();
+$$ LANGUAGE sql SECURITY DEFINER;
+
 CREATE POLICY "Users can view workspaces they belong to"
   ON workspaces FOR SELECT
   USING (
     auth.uid() = owner_id OR 
-    id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid())
+    id IN (SELECT public.get_user_workspaces())
   );
 
 CREATE POLICY "Users can create workspaces"
@@ -111,7 +117,7 @@ CREATE POLICY "Users can view members of their workspaces"
   ON workspace_members FOR SELECT
   USING (
     auth.uid() = user_id OR 
-    workspace_id IN (SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid())
+    workspace_id IN (SELECT public.get_user_workspaces())
   );
 
 CREATE POLICY "Workspace admins can manage members"
@@ -164,9 +170,7 @@ CREATE POLICY "Members can view credit cards of their workspaces"
     workspace_id IN (
       SELECT id FROM workspaces WHERE owner_id = auth.uid()
     ) OR
-    workspace_id IN (
-      SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
-    )
+    workspace_id IN (SELECT public.get_user_workspaces())
   );
 
 CREATE POLICY "Members can manage credit cards in their workspaces"
@@ -175,9 +179,7 @@ CREATE POLICY "Members can manage credit cards in their workspaces"
     workspace_id IN (
       SELECT id FROM workspaces WHERE owner_id = auth.uid()
     ) OR
-    workspace_id IN (
-      SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
-    )
+    workspace_id IN (SELECT public.get_user_workspaces())
   );
 
 
@@ -207,9 +209,7 @@ CREATE POLICY "Members can view transactions of their workspaces"
     workspace_id IN (
       SELECT id FROM workspaces WHERE owner_id = auth.uid()
     ) OR
-    workspace_id IN (
-      SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
-    )
+    workspace_id IN (SELECT public.get_user_workspaces())
   );
 
 CREATE POLICY "Members can manage transactions in their workspaces"
@@ -218,7 +218,5 @@ CREATE POLICY "Members can manage transactions in their workspaces"
     workspace_id IN (
       SELECT id FROM workspaces WHERE owner_id = auth.uid()
     ) OR
-    workspace_id IN (
-      SELECT workspace_id FROM workspace_members WHERE user_id = auth.uid()
-    )
+    workspace_id IN (SELECT public.get_user_workspaces())
   );
