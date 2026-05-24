@@ -63,7 +63,7 @@ function Button({
 
   const handleClick = async (e: React.MouseEvent<HTMLButtonElement>) => {
     if (onClick) {
-      const result = onClick(e)
+      const result = onClick(e) as any
       if (result instanceof Promise) {
         setIsPending(true)
         try {
