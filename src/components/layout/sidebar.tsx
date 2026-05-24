@@ -9,10 +9,10 @@ export function Sidebar() {
 
   const navItems = [
     { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-    { name: "Transações", href: "/transactions", icon: ReceiptText },
-    { name: "Cartões", href: "/cards", icon: CreditCard },
-    { name: "Workspaces", href: "/workspaces", icon: Users },
-    { name: "Configurações", href: "/settings", icon: Settings },
+    { name: "Transações", href: "/dashboard/transactions", icon: ReceiptText },
+    { name: "Cartões", href: "/dashboard/cards", icon: CreditCard },
+    { name: "Workspaces", href: "/dashboard/workspaces", icon: Users },
+    { name: "Configurações", href: "/dashboard/settings", icon: Settings },
   ]
 
   return (
@@ -31,9 +31,8 @@ export function Sidebar() {
               <Link
                 key={item.name}
                 href={item.href}
-                className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-all hover:text-primary ${
-                  isActive ? "bg-muted text-primary" : "text-muted-foreground"
-                }`}
+                className={`flex items-center gap-3 rounded-lg px-3 py-2 transition-all hover:text-primary ${isActive ? "bg-muted text-primary" : "text-muted-foreground"
+                  }`}
               >
                 <item.icon className="h-4 w-4" />
                 {item.name}
