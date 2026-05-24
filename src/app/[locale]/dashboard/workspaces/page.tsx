@@ -13,6 +13,11 @@ export default async function WorkspacesPage() {
     .select('*')
     .order('created_at', { ascending: true })
 
+  if (error) {
+    console.error("Supabase Error:", error);
+    throw new Error(error.message);
+  }
+
   return (
     <div className="space-y-6">
       <div>

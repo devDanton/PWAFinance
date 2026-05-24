@@ -29,7 +29,7 @@ export async function createTransaction(formData: FormData) {
     date,
     description,
     category,
-    credit_card_id: credit_card_id ? credit_card_id : null,
+    credit_card_id: credit_card_id && credit_card_id !== 'none' ? credit_card_id : null,
     installments,
     is_paid,
   }
