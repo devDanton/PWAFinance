@@ -17,12 +17,14 @@ export function SubscriptionList({
   initialSubscriptions, 
   workspaces, 
   cards,
-  categories
+  categories,
+  transactions
 }: { 
   initialSubscriptions: any[], 
   workspaces: any[], 
   cards: any[],
-  categories: any[]
+  categories: any[],
+  transactions: any[]
 }) {
   const [open, setOpen] = useState(false)
   const [selectedWorkspace, setSelectedWorkspace] = useState(workspaces[0]?.id || '')
@@ -192,7 +194,8 @@ export function SubscriptionList({
               <TableHead>Categoria</TableHead>
               <TableHead>Workspace</TableHead>
               <TableHead>Ativo?</TableHead>
-              <TableHead className="text-right">Valor</TableHead>
+              <TableHead className="text-right">Valor da Parcela</TableHead>
+              <TableHead className="text-right">Total Gasto</TableHead>
               <TableHead className="text-right">Ações</TableHead>
             </TableRow>
           </TableHeader>
@@ -248,6 +251,13 @@ export function SubscriptionList({
                     </TableCell>
                     <TableCell className={`text-right font-bold ${isIncome ? 'text-emerald-500' : ''}`}>
                       {isIncome ? '+' : '-'}{formattedAmount}
+                    </TableCell>
+                    <TableCell className="text-right font-semibold text-muted-foreground">
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                        transactions
+                          .filter(tx => tx.is_paid && tx.type === sub.type && tx.description.toLowerCase().trim() === sub.description.toLowerCase().trim())
+                          .reduce((sum, tx) => sum + Number(tx.amount), 0)
+                      )}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
