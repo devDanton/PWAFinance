@@ -4,6 +4,8 @@ import { TransactionList } from './transaction-list'
 export default async function TransactionsPage() {
   const supabase = await createClient()
 
+  const { data: { user } } = await supabase.auth.getUser()
+
   const { data: workspaces } = await supabase
     .from('workspaces')
     .select('id, name')
@@ -12,10 +14,25 @@ export default async function TransactionsPage() {
     .from('credit_cards')
     .select('id, name, workspace_id')
 
+  const { data: categories } = await supabase
+    .from('categories')
+    .select('id, name, workspace_id, color')
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('transaction_sort_preference')
+    .eq('id', user?.id)
+    .single()
+
+  const sortPref = profile?.transaction_sort_preference || 'date:desc'
+  const [sortField, sortDir] = sortPref.split(':')
+
   const { data: transactions } = await supabase
     .from('transactions')
-    .select('*, workspaces(name), credit_cards(name)')
-    .order('date', { ascending: false })
+    .select('*, workspaces(name), credit_cards(name), categories(name)')
+    .order(sortField || 'date', { ascending: sortDir === 'asc' })
+
+  const todayDate = new Date().toISOString().split('T')[0]
 
   return (
     <div className="space-y-6">
@@ -30,6 +47,9 @@ export default async function TransactionsPage() {
         initialTransactions={transactions || []} 
         workspaces={workspaces || []} 
         cards={cards || []} 
+        categories={categories || []}
+        initialSortPreference={sortPref}
+        todayDate={todayDate}
       />
     </div>
   )

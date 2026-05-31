@@ -6,8 +6,10 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Clean up previous execution to avoid "already exists" errors during setup
+DROP TABLE IF EXISTS subscriptions CASCADE;
 DROP TABLE IF EXISTS transactions CASCADE;
 DROP TABLE IF EXISTS credit_cards CASCADE;
+DROP TABLE IF EXISTS categories CASCADE;
 DROP TABLE IF EXISTS workspace_members CASCADE;
 DROP TABLE IF EXISTS workspaces CASCADE;
 DROP TABLE IF EXISTS profiles CASCADE;
@@ -23,6 +25,7 @@ CREATE TABLE profiles (
   first_name TEXT,
   theme_preference TEXT DEFAULT 'system' CHECK (theme_preference IN ('light', 'dark', 'system')),
   language_preference TEXT DEFAULT 'pt' CHECK (language_preference IN ('en', 'pt')),
+  transaction_sort_preference TEXT DEFAULT 'date:desc',
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -196,7 +199,7 @@ CREATE TABLE transactions (
   date DATE NOT NULL,
   due_date DATE,
   description TEXT NOT NULL,
-  category TEXT NOT NULL,
+  category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
   credit_card_id UUID REFERENCES credit_cards(id) ON DELETE SET NULL,
   installments INTEGER DEFAULT 1 CHECK (installments >= 1),
   is_paid BOOLEAN DEFAULT false,
@@ -222,3 +225,105 @@ CREATE POLICY "Members can manage transactions in their workspaces"
     ) OR
     workspace_id IN (SELECT public.get_user_workspaces())
   );
+
+-- ==========================================
+-- 6. Categories Table
+-- ==========================================
+CREATE TABLE categories (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE NOT NULL,
+  name TEXT NOT NULL,
+  color TEXT DEFAULT '#808080',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Members can view categories of their workspaces"
+  ON categories FOR SELECT
+  USING (
+    workspace_id IN (
+      SELECT id FROM workspaces WHERE owner_id = auth.uid()
+    ) OR
+    workspace_id IN (SELECT public.get_user_workspaces())
+  );
+
+CREATE POLICY "Members can manage categories in their workspaces"
+  ON categories FOR ALL
+  USING (
+    workspace_id IN (
+      SELECT id FROM workspaces WHERE owner_id = auth.uid()
+    ) OR
+    workspace_id IN (SELECT public.get_user_workspaces())
+  );
+
+-- ==========================================
+-- 7. Subscriptions Table
+-- ==========================================
+CREATE TABLE subscriptions (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  workspace_id UUID REFERENCES workspaces(id) ON DELETE CASCADE NOT NULL,
+  created_by UUID REFERENCES profiles(id) ON DELETE CASCADE NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('income', 'expense')),
+  amount DECIMAL(12, 2) NOT NULL,
+  description TEXT NOT NULL,
+  category_id UUID REFERENCES categories(id) ON DELETE SET NULL,
+  credit_card_id UUID REFERENCES credit_cards(id) ON DELETE SET NULL,
+  frequency TEXT NOT NULL CHECK (frequency IN ('monthly', 'yearly')),
+  next_date DATE NOT NULL,
+  active BOOLEAN DEFAULT true,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE subscriptions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Members can view subscriptions of their workspaces"
+  ON subscriptions FOR SELECT
+  USING (
+    workspace_id IN (
+      SELECT id FROM workspaces WHERE owner_id = auth.uid()
+    ) OR
+    workspace_id IN (SELECT public.get_user_workspaces())
+  );
+
+CREATE POLICY "Members can manage subscriptions in their workspaces"
+  ON subscriptions FOR ALL
+  USING (
+    workspace_id IN (
+      SELECT id FROM workspaces WHERE owner_id = auth.uid()
+    ) OR
+    workspace_id IN (SELECT public.get_user_workspaces())
+  );
+
+-- ==========================================
+-- 8. PG_CRON for Subscriptions
+-- ==========================================
+CREATE EXTENSION IF NOT EXISTS pg_cron;
+
+CREATE OR REPLACE FUNCTION process_subscriptions()
+RETURNS void AS $$
+DECLARE
+  sub RECORD;
+BEGIN
+  FOR sub IN 
+    SELECT * FROM subscriptions WHERE active = true AND next_date <= CURRENT_DATE
+  LOOP
+    -- Insert transaction
+    INSERT INTO transactions (
+      workspace_id, created_by, type, amount, date, due_date, description, category_id, credit_card_id, is_paid
+    ) VALUES (
+      sub.workspace_id, sub.created_by, sub.type, sub.amount, sub.next_date, sub.next_date, sub.description, sub.category_id, sub.credit_card_id, false
+    );
+
+    -- Update next_date
+    IF sub.frequency = 'monthly' THEN
+      UPDATE subscriptions SET next_date = sub.next_date + INTERVAL '1 month' WHERE id = sub.id;
+    ELSIF sub.frequency = 'yearly' THEN
+      UPDATE subscriptions SET next_date = sub.next_date + INTERVAL '1 year' WHERE id = sub.id;
+    END IF;
+  END LOOP;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Uncomment below to schedule in your database (needs pg_cron enabled in the active database)
+-- SELECT cron.schedule('process-subscriptions-daily', '0 0 * * *', 'SELECT process_subscriptions()');
