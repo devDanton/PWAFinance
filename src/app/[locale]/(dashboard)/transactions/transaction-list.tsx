@@ -17,6 +17,7 @@ import { SubmitButton } from '@/components/ui/submit-button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
 import { ImportCsvModal } from './import-csv-modal'
+import { BulkActionsBar } from './bulk-actions-bar'
 
 export function TransactionList({ 
   initialTransactions, 
@@ -38,6 +39,7 @@ export function TransactionList({
   const [editingTx, setEditingTx] = useState<any>(null)
   const [isCloning, setIsCloning] = useState(false)
   const [deletingTx, setDeletingTx] = useState<any>(null)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
   
   // Filters
   const [searchTerm, setSearchTerm] = useState('')
@@ -100,19 +102,36 @@ export function TransactionList({
   const filteredCards = cards.filter(c => c.workspace_id === selectedWorkspace)
   const filteredCategories = categories.filter(c => c.workspace_id === selectedWorkspace)
 
-  async function handleSort(field: string) {
-    let newDir = 'asc'
-    if (sortField === field && sortDir === 'asc') {
-      newDir = 'desc'
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      const newDir = sortDir === 'asc' ? 'desc' : 'asc'
+      setSortPref(`${field}:${newDir}`)
+      updateTransactionSortPreference(`${field}:${newDir}`)
+    } else {
+      setSortPref(`${field}:desc`)
+      updateTransactionSortPreference(`${field}:desc`)
     }
-    const newPref = `${field}:${newDir}`
-    setSortPref(newPref)
-    await updateTransactionSortPreference(newPref)
   }
 
-  function getSortIcon(field: string) {
-    if (sortField !== field) return <ArrowUpDown className="ml-1 h-3 w-3 text-muted-foreground" />
-    return sortDir === 'asc' ? <ArrowUp className="ml-1 h-3 w-3" /> : <ArrowDown className="ml-1 h-3 w-3" />
+  const getSortIcon = (field: string) => {
+    if (sortField !== field) return <ArrowUpDown className="ml-2 h-4 w-4 text-muted-foreground/30" />
+    return sortDir === 'asc' ? <ArrowUp className="ml-2 h-4 w-4" /> : <ArrowDown className="ml-2 h-4 w-4" />
+  }
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedIds(filteredTransactions.map(t => t.id))
+    } else {
+      setSelectedIds([])
+    }
+  }
+
+  const handleSelectRow = (id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedIds(prev => [...prev, id])
+    } else {
+      setSelectedIds(prev => prev.filter(rowId => rowId !== id))
+    }
   }
 
   async function handleSave(formData: FormData) {
@@ -427,6 +446,12 @@ export function TransactionList({
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-12">
+                <Checkbox 
+                  checked={filteredTransactions.length > 0 && selectedIds.length === filteredTransactions.length}
+                  onCheckedChange={handleSelectAll}
+                />
+              </TableHead>
               <TableHead className="cursor-pointer select-none" onClick={() => handleSort('date')}>
                 <div className="flex items-center">Datas {getSortIcon('date')}</div>
               </TableHead>
@@ -447,7 +472,7 @@ export function TransactionList({
           <TableBody>
             {filteredTransactions.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center text-muted-foreground h-24">
+                <TableCell colSpan={8} className="text-center text-muted-foreground h-24">
                   Nenhuma transação encontrada.
                 </TableCell>
               </TableRow>
@@ -458,6 +483,12 @@ export function TransactionList({
                 
                 return (
                   <TableRow key={tx.id}>
+                    <TableCell>
+                      <Checkbox 
+                        checked={selectedIds.includes(tx.id)}
+                        onCheckedChange={(c) => handleSelectRow(tx.id, !!c)}
+                      />
+                    </TableCell>
                     <TableCell>
                       <div className="flex flex-col">
                         <span className="font-medium">{tx.due_date ? format(new Date(tx.due_date + 'T12:00:00'), 'dd/MM/yyyy') : format(new Date(tx.date + 'T12:00:00'), 'dd/MM/yyyy')}</span>
@@ -520,6 +551,13 @@ export function TransactionList({
           </TableBody>
         </Table>
       </div>
+      <BulkActionsBar 
+        selectedIds={selectedIds} 
+        clearSelection={() => setSelectedIds([])} 
+        workspaces={workspaces}
+        cards={cards}
+        categories={categories}
+      />
     </div>
   )
 }

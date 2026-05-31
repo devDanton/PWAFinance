@@ -269,3 +269,55 @@ export async function importTransactions(payload: {
   revalidatePath('/', 'layout');
   return { success: true, count: transactionsToInsert.length };
 }
+
+export async function bulkDeleteTransactions(ids: string[]) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Não autenticado' };
+
+  if (!ids || ids.length === 0) return { error: 'Nenhum ID fornecido' };
+
+  const { error } = await supabase
+    .from('transactions')
+    .delete()
+    .in('id', ids)
+    .eq('created_by', user.id);
+
+  if (error) return { error: error.message };
+
+  revalidatePath('/', 'layout');
+  return { success: true };
+}
+
+export async function bulkUpdateTransactions(ids: string[], data: {
+  category_id?: string | null;
+  credit_card_id?: string | null;
+  workspace_id?: string;
+  is_paid?: boolean;
+}) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Não autenticado' };
+
+  if (!ids || ids.length === 0) return { error: 'Nenhum ID fornecido' };
+  
+  // clean up data to only include defined values
+  const payload: any = {};
+  if (data.category_id !== undefined) payload.category_id = data.category_id;
+  if (data.credit_card_id !== undefined) payload.credit_card_id = data.credit_card_id;
+  if (data.workspace_id !== undefined) payload.workspace_id = data.workspace_id;
+  if (data.is_paid !== undefined) payload.is_paid = data.is_paid;
+
+  if (Object.keys(payload).length === 0) return { error: 'Nenhum dado para atualizar' };
+
+  const { error } = await supabase
+    .from('transactions')
+    .update(payload)
+    .in('id', ids)
+    .eq('created_by', user.id);
+
+  if (error) return { error: error.message };
+
+  revalidatePath('/', 'layout');
+  return { success: true };
+}
