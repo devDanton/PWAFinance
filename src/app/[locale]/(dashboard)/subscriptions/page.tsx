@@ -30,10 +30,10 @@ export default async function SubscriptionsPage() {
         </p>
       </div>
 
-      <SubscriptionList 
-        initialSubscriptions={subscriptions || []} 
-        workspaces={workspaces || []} 
-        cards={cards || []} 
+      <SubscriptionList
+        initialSubscriptions={subscriptions || []}
+        workspaces={workspaces || []}
+        cards={cards || []}
         categories={categories || []}
       />
     </div>
