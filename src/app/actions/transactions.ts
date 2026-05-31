@@ -172,3 +172,100 @@ export async function updateTransaction(id: string, formData: FormData) {
   revalidatePath('/', 'layout')
   return { success: true }
 }
+
+export async function importTransactions(payload: {
+  workspace_id: string;
+  credit_card_id?: string | null;
+  transactions: {
+    date: string;
+    description: string;
+    amount: number;
+    type: 'income' | 'expense';
+    category_name?: string;
+    is_paid?: boolean;
+  }[];
+}) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Não autenticado' };
+
+  const { workspace_id, credit_card_id, transactions } = payload;
+  
+  if (!transactions || transactions.length === 0) return { error: 'Nenhuma transação para importar' };
+
+  // Get unique category names to check/create
+  const uniqueCategoryNames = Array.from(new Set(
+    transactions.map(t => t.category_name?.trim()).filter(Boolean)
+  )) as string[];
+
+  const categoryMap: Record<string, string> = {};
+
+  if (uniqueCategoryNames.length > 0) {
+    // Fetch existing categories in workspace
+    const { data: existingCategories } = await supabase
+      .from('categories')
+      .select('id, name')
+      .eq('workspace_id', workspace_id);
+
+    const existingNames = new Set((existingCategories || []).map(c => c.name.toLowerCase()));
+    
+    // Determine which ones are missing
+    const missingNames = uniqueCategoryNames.filter(name => !existingNames.has(name.toLowerCase()));
+
+    // Create missing categories
+    if (missingNames.length > 0) {
+      const newCategories = missingNames.map(name => ({
+        workspace_id,
+        name,
+        color: '#808080' // default color
+      }));
+
+      const { data: insertedCategories, error: insertCatError } = await supabase
+        .from('categories')
+        .insert(newCategories)
+        .select('id, name');
+
+      if (insertCatError) {
+        return { error: 'Erro ao criar categorias automáticas: ' + insertCatError.message };
+      }
+      
+      const allCats = [...(existingCategories || []), ...(insertedCategories || [])];
+      allCats.forEach(c => {
+        categoryMap[c.name.toLowerCase()] = c.id;
+      });
+    } else {
+      (existingCategories || []).forEach(c => {
+        categoryMap[c.name.toLowerCase()] = c.id;
+      });
+    }
+  }
+
+  // Format transactions for insertion
+  const transactionsToInsert = transactions.map(t => {
+    let category_id = null;
+    if (t.category_name) {
+      category_id = categoryMap[t.category_name.trim().toLowerCase()] || null;
+    }
+
+    return {
+      workspace_id,
+      created_by: user.id,
+      type: t.type,
+      amount: t.amount,
+      date: t.date,
+      due_date: t.date,
+      description: t.description,
+      category_id,
+      credit_card_id: credit_card_id || null,
+      installments: 1,
+      is_paid: t.is_paid !== undefined ? t.is_paid : true,
+    };
+  });
+
+  const { error } = await supabase.from('transactions').insert(transactionsToInsert);
+
+  if (error) return { error: error.message };
+
+  revalidatePath('/', 'layout');
+  return { success: true, count: transactionsToInsert.length };
+}

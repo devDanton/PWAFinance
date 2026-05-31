@@ -16,6 +16,8 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { SubmitButton } from '@/components/ui/submit-button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 
+import { ImportCsvModal } from './import-csv-modal'
+
 export function TransactionList({ 
   initialTransactions, 
   workspaces, 
@@ -262,12 +264,15 @@ export function TransactionList({
           </Popover>
         </div>
 
-        <Dialog open={open} onOpenChange={(val) => { setOpen(val); if (!val) { setEditingTx(null); setIsCloning(false); } }}>
-          <DialogTrigger asChild>
-            <Button disabled={workspaces.length === 0} onClick={() => { setEditingTx(null); setIsCloning(false); setIsRecurring(false); }}>
-              <Plus className="mr-2 h-4 w-4" /> Nova Transação
-            </Button>
-          </DialogTrigger>
+        <div className="flex items-center gap-2">
+          <ImportCsvModal workspaces={workspaces} cards={cards} />
+
+          <Dialog open={open} onOpenChange={(val) => { setOpen(val); if (!val) { setEditingTx(null); setIsCloning(false); } }}>
+            <DialogTrigger asChild>
+              <Button disabled={workspaces.length === 0} onClick={() => { setEditingTx(null); setIsCloning(false); setIsRecurring(false); }}>
+                <Plus className="mr-2 h-4 w-4" /> Nova Transação
+              </Button>
+            </DialogTrigger>
           <DialogContent className="sm:max-w-[425px]">
             <form action={handleSave} key={editingTx ? (isCloning ? 'clone' : editingTx.id) : 'new'}>
               <DialogHeader>
@@ -399,6 +404,7 @@ export function TransactionList({
             </form>
           </DialogContent>
         </Dialog>
+      </div>
 
         <Dialog open={!!deletingTx} onOpenChange={(val) => { if (!val) setDeletingTx(null); }}>
           <DialogContent>
