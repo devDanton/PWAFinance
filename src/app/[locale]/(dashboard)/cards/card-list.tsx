@@ -123,7 +123,7 @@ export function CardList({ initialCards, workspaces }: { initialCards: any[], wo
             const textColor = getContrastColor(bgColor)
             const isDarkText = textColor === '#000000'
             const buttonHoverBg = isDarkText ? 'hover:bg-black/10' : 'hover:bg-white/20'
-            
+
             return (
               <Card key={card.id} className="relative overflow-hidden transition-all hover:shadow-md" style={{ backgroundColor: bgColor, color: textColor }}>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pr-12">
@@ -140,11 +140,26 @@ export function CardList({ initialCards, workspaces }: { initialCards: any[], wo
                     </Button>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{formattedLimit}</div>
-                  <p className="text-xs mt-1" style={{ opacity: 0.8 }}>
-                    Workspace: {card.workspaces?.name}
-                  </p>
+                <CardContent className="space-y-4">
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center text-sm" style={{ opacity: 0.9 }}>
+                      <span>Limite Total:</span>
+                      <span className="font-bold text-lg">{formattedLimit}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span style={{ opacity: 0.9 }}>Utilizado:</span>
+                      <span className="font-bold">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(card.limit_used || 0)}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                      <span style={{ opacity: 0.9 }}>Disponível:</span>
+                      <span className="font-bold">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(card.limit_available || card.total_limit)}</span>
+                    </div>
+                  </div>
+                  <div className="pt-3 border-t border-current/20 flex flex-col gap-1">
+                    <p className="text-xs" style={{ opacity: 0.8 }}>
+                      Workspace: {card.workspaces?.name}
+                    </p>
+                  </div>
                   <div className="mt-4 flex items-center justify-between text-sm" style={{ opacity: 0.9 }}>
                     <div>Fechamento: Dia {card.closing_day}</div>
                     <div>Vencimento: Dia {card.due_day}</div>

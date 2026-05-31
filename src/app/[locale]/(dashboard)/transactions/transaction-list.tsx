@@ -168,8 +168,39 @@ export function TransactionList({
     await toggleTransactionPaid(id, !currentStatus)
   }
 
+  // Calculate totals for filtered transactions
+  const totalIncome = filteredTransactions
+    .filter(t => t.type === 'income')
+    .reduce((acc, t) => acc + t.amount, 0)
+  
+  const totalExpense = filteredTransactions
+    .filter(t => t.type === 'expense')
+    .reduce((acc, t) => acc + t.amount, 0)
+    
+  const totalBalance = totalIncome - totalExpense
+
+  const formatCurrency = (value: number) => 
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
+
   return (
     <div className="space-y-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="rounded-lg border bg-card p-4 shadow-sm">
+          <div className="text-sm font-medium text-muted-foreground">Receitas</div>
+          <div className="text-2xl font-bold text-emerald-500">{formatCurrency(totalIncome)}</div>
+        </div>
+        <div className="rounded-lg border bg-card p-4 shadow-sm">
+          <div className="text-sm font-medium text-muted-foreground">Despesas</div>
+          <div className="text-2xl font-bold text-rose-500">{formatCurrency(totalExpense)}</div>
+        </div>
+        <div className="rounded-lg border bg-card p-4 shadow-sm">
+          <div className="text-sm font-medium text-muted-foreground">Saldo</div>
+          <div className={`text-2xl font-bold ${totalBalance >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+            {formatCurrency(totalBalance)}
+          </div>
+        </div>
+      </div>
+
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex flex-1 items-center space-x-2">
           <Input 

@@ -14,6 +14,26 @@ export default async function CardsPage() {
     .from('workspaces')
     .select('id, name')
 
+  const { data: transactions } = await supabase
+    .from('transactions')
+    .select('amount, credit_card_id')
+    .not('credit_card_id', 'is', null)
+    .eq('is_paid', false)
+
+  const txs = transactions || []
+
+  const cardsWithLimits = (cards || []).map(card => {
+    const used = txs
+      .filter(tx => tx.credit_card_id === card.id)
+      .reduce((sum, tx) => sum + Number(tx.amount), 0)
+    
+    return {
+      ...card,
+      limit_used: used,
+      limit_available: Number(card.total_limit) - used
+    }
+  })
+
   return (
     <div className="space-y-6">
       <div>
@@ -23,7 +43,7 @@ export default async function CardsPage() {
         </p>
       </div>
 
-      <CardList initialCards={cards || []} workspaces={workspaces || []} />
+      <CardList initialCards={cardsWithLimits} workspaces={workspaces || []} />
     </div>
   )
 }
