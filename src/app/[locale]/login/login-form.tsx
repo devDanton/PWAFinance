@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { SubmitButton } from '@/components/ui/submit-button'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { useRouter } from '@/i18n/routing'
+import { useRouter, Link } from '@/i18n/routing'
 
 export function LoginForm() {
   const t = useTranslations('Common')
@@ -72,9 +72,9 @@ export function LoginForm() {
             <div className="flex items-center justify-between">
               <Label htmlFor="password">Senha</Label>
               {isLogin && (
-                <a href="#" className="text-xs text-primary hover:underline font-medium transition-colors">
+                <Link href="/forgot-password" className="text-xs text-primary hover:underline font-medium transition-colors">
                   Esqueceu a senha?
-                </a>
+                </Link>
               )}
             </div>
             <Input

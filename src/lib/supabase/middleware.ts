@@ -14,9 +14,7 @@ export async function updateSession(request: NextRequest, response: NextResponse
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({
-            request,
-          })
+          
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           )
@@ -34,9 +32,13 @@ export async function updateSession(request: NextRequest, response: NextResponse
   } = await supabase.auth.getUser()
 
   // Protect routes based on authentication status and paths
-  const isAuthRoute = request.nextUrl.pathname.match(/\/(pt|en)\/login/) || request.nextUrl.pathname.endsWith('/login')
+  const isAuthRoute = request.nextUrl.pathname.match(/\/(pt|en)\/(login|forgot-password)/) || 
+                      request.nextUrl.pathname.endsWith('/login') || 
+                      request.nextUrl.pathname.endsWith('/forgot-password')
+                      
+  const isCallbackRoute = request.nextUrl.pathname.startsWith('/auth/callback')
 
-  if (!user && !isAuthRoute) {
+  if (!user && !isAuthRoute && !isCallbackRoute) {
     // no user, redirect to login page
     const url = request.nextUrl.clone()
     url.pathname = '/pt/login' // Or keep current locale
@@ -46,7 +48,7 @@ export async function updateSession(request: NextRequest, response: NextResponse
   } else if (user && isAuthRoute) {
     // user is logged in, redirect to dashboard
     const url = request.nextUrl.clone()
-    url.pathname = '/pt/dashboard' // Or keep current locale
+    url.pathname = '/pt' // Or keep current locale
     
     supabaseResponse = NextResponse.redirect(url)
   }

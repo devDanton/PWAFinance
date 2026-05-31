@@ -23,7 +23,7 @@ export async function createCard(formData: FormData) {
 
   if (error) return { error: error.message }
   
-  revalidatePath('/dashboard/cards')
+  revalidatePath('/cards')
   return { success: true }
 }
 
@@ -37,7 +37,7 @@ export async function deleteCard(id: string) {
 
   if (error) return { error: error.message }
   
-  revalidatePath('/dashboard/cards')
+  revalidatePath('/cards')
   return { success: true }
 }
 
@@ -64,6 +64,6 @@ export async function updateCard(id: string, formData: FormData) {
 
   if (error) return { error: error.message }
   
-  revalidatePath('/dashboard/cards')
+  revalidatePath('/cards')
   return { success: true }
 }

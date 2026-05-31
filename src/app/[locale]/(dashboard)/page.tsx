@@ -27,7 +27,7 @@ export default async function DashboardPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
-        <Link href="/dashboard/workspaces" className="transition-transform hover:scale-[1.02]">
+        <Link href="/workspaces" className="transition-transform hover:scale-[1.02]">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Workspaces Ativos</CardTitle>
@@ -38,7 +38,7 @@ export default async function DashboardPage() {
             </CardContent>
           </Card>
         </Link>
-        <Link href="/dashboard/cards" className="transition-transform hover:scale-[1.02]">
+        <Link href="/cards" className="transition-transform hover:scale-[1.02]">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Cartões de Crédito</CardTitle>
@@ -49,7 +49,7 @@ export default async function DashboardPage() {
             </CardContent>
           </Card>
         </Link>
-        <Link href="/dashboard/transactions" className="transition-transform hover:scale-[1.02]">
+        <Link href="/transactions" className="transition-transform hover:scale-[1.02]">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Transações Lançadas</CardTitle>

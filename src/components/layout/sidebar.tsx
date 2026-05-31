@@ -8,11 +8,11 @@ export function Sidebar() {
   const pathname = usePathname()
 
   const navItems = [
-    { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-    { name: "Transações", href: "/dashboard/transactions", icon: ReceiptText },
-    { name: "Cartões", href: "/dashboard/cards", icon: CreditCard },
-    { name: "Workspaces", href: "/dashboard/workspaces", icon: Users },
-    { name: "Configurações", href: "/dashboard/settings", icon: Settings },
+    { name: "Dashboard", href: "/", icon: LayoutDashboard },
+    { name: "Transações", href: "/transactions", icon: ReceiptText },
+    { name: "Cartões", href: "/cards", icon: CreditCard },
+    { name: "Workspaces", href: "/workspaces", icon: Users },
+    { name: "Configurações", href: "/settings", icon: Settings },
   ]
 
   return (
@@ -26,7 +26,7 @@ export function Sidebar() {
       <div className="flex-1 overflow-auto py-2">
         <nav className="grid items-start px-2 text-sm font-medium lg:px-4">
           {navItems.map((item) => {
-            const isActive = item.href === "/dashboard" 
+            const isActive = item.href === "/" 
               ? pathname === item.href 
               : pathname === item.href || pathname.startsWith(`${item.href}/`)
             return (

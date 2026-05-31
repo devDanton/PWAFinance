@@ -113,7 +113,7 @@ export async function deleteTransaction(id: string, deleteAll: boolean = false) 
     if (error) return { error: error.message }
   }
 
-  revalidatePath('/dashboard/transactions')
+  revalidatePath('/transactions')
   return { success: true }
 }
 
