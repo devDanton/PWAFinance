@@ -24,6 +24,7 @@ export function TransactionList({
   workspaces, 
   cards,
   categories,
+  payers,
   initialSortPreference = 'date:desc',
   todayDate
 }: { 
@@ -31,6 +32,7 @@ export function TransactionList({
   workspaces: any[], 
   cards: any[],
   categories: any[],
+  payers: any[],
   initialSortPreference?: string,
   todayDate: string
 }) {
@@ -48,6 +50,11 @@ export function TransactionList({
   const [maxAmount, setMaxAmount] = useState<string>('')
   const [startDate, setStartDate] = useState<string>('')
   const [endDate, setEndDate] = useState<string>('')
+  const [dueStartDate, setDueStartDate] = useState<string>('')
+  const [dueEndDate, setDueEndDate] = useState<string>('')
+  const [filterPayer, setFilterPayer] = useState<string>('all')
+  const [filterCategory, setFilterCategory] = useState<string>('all')
+  const [quickPeriodTarget, setQuickPeriodTarget] = useState<'date' | 'due_date'>('date')
 
   // Sorting
   const [sortPref, setSortPref] = useState(initialSortPreference)
@@ -68,18 +75,26 @@ export function TransactionList({
         (tx.description?.toLowerCase() || '').includes(searchLower) ||
         (tx.categories?.name?.toLowerCase() || '').includes(searchLower) ||
         (tx.workspaces?.name?.toLowerCase() || '').includes(searchLower) ||
-        (tx.credit_cards?.name?.toLowerCase() || '').includes(searchLower)
+        (tx.credit_cards?.name?.toLowerCase() || '').includes(searchLower) ||
+        (tx.payers?.name?.toLowerCase() || '').includes(searchLower)
       )
       if (!matchText) return false
     }
 
     if (filterType !== 'all' && tx.type !== filterType) return false
+    if (filterPayer !== 'all' && tx.payer_id !== filterPayer) return false
+    if (filterCategory !== 'all' && tx.category_id !== filterCategory) return false
     
     if (minAmount && tx.amount < parseFloat(minAmount)) return false
     if (maxAmount && tx.amount > parseFloat(maxAmount)) return false
 
     if (startDate && tx.date < startDate) return false
     if (endDate && tx.date > endDate) return false
+    
+    // Some transactions might not have due_date, fallback to date
+    const txDueDate = tx.due_date || tx.date
+    if (dueStartDate && txDueDate < dueStartDate) return false
+    if (dueEndDate && txDueDate > dueEndDate) return false
 
     return true
   })
@@ -101,6 +116,7 @@ export function TransactionList({
 
   const filteredCards = cards.filter(c => c.workspace_id === selectedWorkspace)
   const filteredCategories = categories.filter(c => c.workspace_id === selectedWorkspace)
+  const filteredPayers = payers.filter(c => c.workspace_id === selectedWorkspace)
 
   const handleSort = (field: string) => {
     if (sortField === field) {
@@ -252,6 +268,28 @@ export function TransactionList({
                       <SelectItem value="expense">Despesas</SelectItem>
                     </SelectContent>
                   </Select>
+
+                  <Label>Categoria</Label>
+                  <Select value={filterCategory} onValueChange={setFilterCategory}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todas</SelectItem>
+                      {filteredCategories.map(c => (
+                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+
+                  <Label>Pagador (Terceiros)</Label>
+                  <Select value={filterPayer} onValueChange={setFilterPayer}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos</SelectItem>
+                      {payers.map(p => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="grid gap-1">
@@ -263,18 +301,73 @@ export function TransactionList({
                     <Input type="number" placeholder="999.00" value={maxAmount} onChange={e => setMaxAmount(e.target.value)} />
                   </div>
                 </div>
+                <div className="grid gap-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">Período Rápido</Label>
+                    <Select value={quickPeriodTarget} onValueChange={(val: any) => setQuickPeriodTarget(val)}>
+                      <SelectTrigger className="h-6 text-xs w-[130px]"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="date">Aplicar na Compra</SelectItem>
+                        <SelectItem value="due_date">Aplicar no Vencimento</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => {
+                      const d = new Date(); 
+                      if (quickPeriodTarget === 'date') { setStartDate(d.toISOString().split('T')[0]); setEndDate(d.toISOString().split('T')[0]); }
+                      else { setDueStartDate(d.toISOString().split('T')[0]); setDueEndDate(d.toISOString().split('T')[0]); }
+                    }}>Hoje</Button>
+                    <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => {
+                      const d = new Date(); d.setDate(d.getDate() - 1);
+                      if (quickPeriodTarget === 'date') { setStartDate(d.toISOString().split('T')[0]); setEndDate(d.toISOString().split('T')[0]); }
+                      else { setDueStartDate(d.toISOString().split('T')[0]); setDueEndDate(d.toISOString().split('T')[0]); }
+                    }}>Ontem</Button>
+                    <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => {
+                      const d = new Date(); const start = new Date(d); start.setDate(d.getDate() - d.getDay());
+                      const end = new Date(d); end.setDate(d.getDate() + (6 - d.getDay()));
+                      if (quickPeriodTarget === 'date') { setStartDate(start.toISOString().split('T')[0]); setEndDate(end.toISOString().split('T')[0]); }
+                      else { setDueStartDate(start.toISOString().split('T')[0]); setDueEndDate(end.toISOString().split('T')[0]); }
+                    }}>Esta Semana</Button>
+                    <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => {
+                      const d = new Date(); const start = new Date(d.getFullYear(), d.getMonth(), 1);
+                      const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+                      if (quickPeriodTarget === 'date') { setStartDate(start.toISOString().split('T')[0]); setEndDate(end.toISOString().split('T')[0]); }
+                      else { setDueStartDate(start.toISOString().split('T')[0]); setDueEndDate(end.toISOString().split('T')[0]); }
+                    }}>Este Mês</Button>
+                    <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => {
+                      const d = new Date(); const start = new Date(d.getFullYear(), 0, 1);
+                      const end = new Date(d.getFullYear(), 11, 31);
+                      if (quickPeriodTarget === 'date') { setStartDate(start.toISOString().split('T')[0]); setEndDate(end.toISOString().split('T')[0]); }
+                      else { setDueStartDate(start.toISOString().split('T')[0]); setDueEndDate(end.toISOString().split('T')[0]); }
+                    }}>Este Ano</Button>
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="grid gap-1">
-                    <Label className="text-xs">Data Início</Label>
+                    <Label className="text-xs">Data Compra Início</Label>
                     <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
                   </div>
                   <div className="grid gap-1">
-                    <Label className="text-xs">Data Fim</Label>
+                    <Label className="text-xs">Data Compra Fim</Label>
                     <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
                   </div>
                 </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="grid gap-1">
+                    <Label className="text-xs">Vencimento Início</Label>
+                    <Input type="date" value={dueStartDate} onChange={e => setDueStartDate(e.target.value)} />
+                  </div>
+                  <div className="grid gap-1">
+                    <Label className="text-xs">Vencimento Fim</Label>
+                    <Input type="date" value={dueEndDate} onChange={e => setDueEndDate(e.target.value)} />
+                  </div>
+                </div>
                 <Button variant="ghost" size="sm" onClick={() => {
-                  setFilterType('all'); setMinAmount(''); setMaxAmount(''); setStartDate(''); setEndDate('');
+                  setFilterType('all'); setFilterCategory('all'); setFilterPayer('all');
+                  setMinAmount(''); setMaxAmount(''); 
+                  setStartDate(''); setEndDate('');
+                  setDueStartDate(''); setDueEndDate('');
                 }}>
                   Limpar Filtros
                 </Button>
@@ -367,6 +460,21 @@ export function TransactionList({
                       </SelectContent>
                     </Select>
                   )}
+                </div>
+
+                <div className="grid gap-2">
+                  <Label htmlFor="payer_id">Pagador / Terceiro (Opcional)</Label>
+                  <Select name="payer_id" defaultValue={editingTx?.payer_id || "none"}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Nenhum" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum</SelectItem>
+                      {filteredPayers.map(p => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <div className="grid gap-2">
@@ -498,10 +606,19 @@ export function TransactionList({
                       </div>
                     </TableCell>
                     <TableCell className="font-medium">
-                      <div className="flex items-center gap-2">
-                        {isIncome ? <ArrowUpCircle className="h-4 w-4 text-emerald-500" /> : <ArrowDownCircle className="h-4 w-4 text-rose-500" />}
-                        {tx.description}
-                        {tx.installments > 1 && <span className="text-xs text-muted-foreground ml-1">({tx.installments}x)</span>}
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                          {isIncome ? <ArrowUpCircle className="h-4 w-4 text-emerald-500" /> : <ArrowDownCircle className="h-4 w-4 text-rose-500" />}
+                          {tx.description}
+                          {tx.installments > 1 && <span className="text-xs text-muted-foreground ml-1">({tx.installments}x)</span>}
+                        </div>
+                        {tx.payers && (
+                          <div className="flex items-center ml-6">
+                            <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-800">
+                              Pagador: {tx.payers.name}
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </TableCell>
                     <TableCell>
