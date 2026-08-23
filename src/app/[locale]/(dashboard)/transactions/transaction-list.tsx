@@ -65,10 +65,10 @@ export function TransactionList({
     if (searchTerm) {
       const searchLower = searchTerm.toLowerCase()
       const matchText = (
-        tx.description?.toLowerCase().includes(searchLower) ||
-        tx.categories?.name?.toLowerCase().includes(searchLower) ||
-        tx.workspaces?.name?.toLowerCase().includes(searchLower) ||
-        (tx.credit_cards?.name && tx.credit_cards.name.toLowerCase().includes(searchLower))
+        (tx.description?.toLowerCase() || '').includes(searchLower) ||
+        (tx.categories?.name?.toLowerCase() || '').includes(searchLower) ||
+        (tx.workspaces?.name?.toLowerCase() || '').includes(searchLower) ||
+        (tx.credit_cards?.name?.toLowerCase() || '').includes(searchLower)
       )
       if (!matchText) return false
     }

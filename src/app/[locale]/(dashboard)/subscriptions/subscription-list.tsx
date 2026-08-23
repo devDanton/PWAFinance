@@ -35,9 +35,9 @@ export function SubscriptionList({
     if (!searchTerm) return true
     const searchLower = searchTerm.toLowerCase()
     return (
-      sub.description?.toLowerCase().includes(searchLower) ||
-      sub.categories?.name?.toLowerCase().includes(searchLower) ||
-      sub.workspaces?.name?.toLowerCase().includes(searchLower)
+      (sub.description?.toLowerCase() || '').includes(searchLower) ||
+      (sub.categories?.name?.toLowerCase() || '').includes(searchLower) ||
+      (sub.workspaces?.name?.toLowerCase() || '').includes(searchLower)
     )
   })
 
