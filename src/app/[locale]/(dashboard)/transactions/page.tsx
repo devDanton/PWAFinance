@@ -6,25 +6,22 @@ export default async function TransactionsPage() {
 
   const { data: { user } } = await supabase.auth.getUser()
 
-  const [
-    { data: workspaces },
-    { data: cards },
-    { data: categories },
-    { data: profile }
-  ] = await Promise.all([
-    supabase.from('workspaces').select('id, name'),
-    supabase.from('credit_cards').select('id, name, workspace_id'),
-    supabase.from('categories').select('id, name, workspace_id, color'),
-    supabase.from('profiles').select('transaction_sort_preference').eq('id', user?.id).single()
-  ])
+  const { data: workspaces } = await supabase.from('workspaces').select('id, name')
+  const { data: cards } = await supabase.from('credit_cards').select('id, name, workspace_id')
+  const { data: categories } = await supabase.from('categories').select('id, name, workspace_id, color')
+  const { data: profile } = await supabase.from('profiles').select('transaction_sort_preference').eq('id', user?.id).single()
 
   const sortPref = profile?.transaction_sort_preference || 'date:desc'
   const [sortField, sortDir] = sortPref.split(':')
 
+  // Prevent Postgrest error if sortField is a relationship (like 'categories')
+  const validSortColumns = ['date', 'amount', 'description', 'created_at', 'type', 'is_paid']
+  const safeSortField = validSortColumns.includes(sortField) ? sortField : 'date'
+
   const { data: transactions } = await supabase
     .from('transactions')
     .select('*, workspaces(name), credit_cards(name), categories(name)')
-    .order(sortField || 'date', { ascending: sortDir === 'asc' })
+    .order(safeSortField, { ascending: sortDir === 'asc' })
 
   const todayDate = new Date().toISOString().split('T')[0]
 
