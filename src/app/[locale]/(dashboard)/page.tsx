@@ -12,26 +12,15 @@ export default async function DashboardPage() {
     redirect('/pt/login');
   }
 
-  // Fetch basic metrics
-  const [
-    { count: workspacesCount },
-    { count: cardsCount },
-    { count: txCount },
-    { data: transactions },
-    { data: creditCards },
-    { data: workspaces },
-    { data: categories },
-    { data: subscriptions }
-  ] = await Promise.all([
-    supabase.from('workspaces').select('*', { count: 'exact', head: true }),
-    supabase.from('credit_cards').select('*', { count: 'exact', head: true }),
-    supabase.from('transactions').select('*', { count: 'exact', head: true }),
-    supabase.from('transactions').select('type, amount, date, is_paid, credit_card_id, category_id, workspace_id, description'),
-    supabase.from('credit_cards').select('id, total_limit'),
-    supabase.from('workspaces').select('id, name'),
-    supabase.from('categories').select('id, name, workspace_id, color'),
-    supabase.from('subscriptions').select('type, description')
-  ]);
+  // Fetch basic metrics sequentially
+  const { count: workspacesCount } = await supabase.from('workspaces').select('*', { count: 'exact', head: true });
+  const { count: cardsCount } = await supabase.from('credit_cards').select('*', { count: 'exact', head: true });
+  const { count: txCount } = await supabase.from('transactions').select('*', { count: 'exact', head: true });
+  const { data: transactions } = await supabase.from('transactions').select('type, amount, date, is_paid, credit_card_id, category_id, workspace_id, description');
+  const { data: creditCards } = await supabase.from('credit_cards').select('id, total_limit');
+  const { data: workspaces } = await supabase.from('workspaces').select('id, name');
+  const { data: categories } = await supabase.from('categories').select('id, name, workspace_id, color');
+  const { data: subscriptions } = await supabase.from('subscriptions').select('type, description');
 
   const txs = transactions || [];
   const cards = creditCards || [];
