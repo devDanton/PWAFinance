@@ -13,6 +13,7 @@ export function Sidebar() {
     { name: "Cartões", href: "/cards", icon: CreditCard },
     { name: "Assinaturas", href: "/subscriptions", icon: Repeat },
     { name: "Categorias", href: "/categories", icon: Tags },
+    { name: "Pagadores", href: "/payers", icon: Users },
     { name: "Workspaces", href: "/workspaces", icon: Users },
     { name: "Configurações", href: "/settings", icon: Settings },
   ]

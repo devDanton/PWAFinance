@@ -17,6 +17,7 @@ export async function createTransaction(formData: FormData) {
   const purchaseDateStr = formData.get('date') as string
   const baseDescription = formData.get('description') as string
   const category_id = formData.get('category_id') as string | null
+  const payer_id = formData.get('payer_id') as string | null
   const credit_card_id = formData.get('credit_card_id') as string | null
   const installments = parseInt(formData.get('installments') as string, 10) || 1
   const is_paid = formData.get('is_paid') === 'true' || formData.get('is_paid') === 'on'
@@ -71,6 +72,7 @@ export async function createTransaction(formData: FormData) {
       due_date: dueDate.toISOString().split('T')[0],
       description,
       category_id,
+      payer_id: payer_id && payer_id !== 'none' ? payer_id : null,
       credit_card_id: card ? card.id : null,
       installments: 1, // Store as 1 since it's already divided, but we keep original metadata if needed? Wait, schema has 'installments', we can keep original or 1. Let's store original.
       is_paid,
@@ -143,6 +145,7 @@ export async function updateTransaction(id: string, formData: FormData) {
   const date = formData.get('date') as string
   const description = formData.get('description') as string
   const category_id = formData.get('category_id') as string | null
+  const payer_id = formData.get('payer_id') as string | null
   const credit_card_id = formData.get('credit_card_id') as string | null
   const installments = parseInt(formData.get('installments') as string, 10) || 1
   const is_paid = formData.get('is_paid') === 'true' || formData.get('is_paid') === 'on'
@@ -156,6 +159,7 @@ export async function updateTransaction(id: string, formData: FormData) {
     due_date: due_date ? due_date : date,
     description,
     category_id,
+    payer_id: payer_id && payer_id !== 'none' ? payer_id : null,
     credit_card_id: credit_card_id && credit_card_id !== 'none' ? credit_card_id : null,
     installments,
     is_paid,

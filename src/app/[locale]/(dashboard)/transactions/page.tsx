@@ -9,6 +9,7 @@ export default async function TransactionsPage() {
   const { data: workspaces } = await supabase.from('workspaces').select('id, name')
   const { data: cards } = await supabase.from('credit_cards').select('id, name, workspace_id')
   const { data: categories } = await supabase.from('categories').select('id, name, workspace_id, color')
+  const { data: payers } = await supabase.from('payers').select('id, name, workspace_id')
   const { data: profile } = await supabase.from('profiles').select('transaction_sort_preference').eq('id', user?.id).single()
 
   const sortPref = profile?.transaction_sort_preference || 'date:desc'
@@ -20,7 +21,7 @@ export default async function TransactionsPage() {
 
   const { data: transactions } = await supabase
     .from('transactions')
-    .select('*, workspaces(name), credit_cards(name), categories(name)')
+    .select('*, workspaces(name), credit_cards(name), categories(name), payers(name)')
     .order(safeSortField, { ascending: sortDir === 'asc' })
 
   const todayDate = new Date().toISOString().split('T')[0]
@@ -39,6 +40,7 @@ export default async function TransactionsPage() {
         workspaces={workspaces || []} 
         cards={cards || []} 
         categories={categories || []}
+        payers={payers || []}
         initialSortPreference={sortPref}
         todayDate={todayDate}
       />
