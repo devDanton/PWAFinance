@@ -4,26 +4,19 @@ import { SubscriptionList } from './subscription-list'
 export default async function SubscriptionsPage() {
   const supabase = await createClient()
 
-  const { data: workspaces } = await supabase
-    .from('workspaces')
-    .select('id, name')
-
-  const { data: cards } = await supabase
-    .from('credit_cards')
-    .select('id, name, workspace_id')
-
-  const { data: categories } = await supabase
-    .from('categories')
-    .select('id, name, workspace_id, color')
-
-  const { data: subscriptions } = await supabase
-    .from('subscriptions')
-    .select('*, workspaces(name), credit_cards(name), categories(name, color)')
-    .order('next_date', { ascending: true })
-
-  const { data: transactions } = await supabase
-    .from('transactions')
-    .select('amount, description, type, is_paid')
+  const [
+    { data: workspaces },
+    { data: cards },
+    { data: categories },
+    { data: subscriptions },
+    { data: transactions }
+  ] = await Promise.all([
+    supabase.from('workspaces').select('id, name'),
+    supabase.from('credit_cards').select('id, name, workspace_id'),
+    supabase.from('categories').select('id, name, workspace_id, color'),
+    supabase.from('subscriptions').select('*, workspaces(name), credit_cards(name), categories(name, color)').order('next_date', { ascending: true }),
+    supabase.from('transactions').select('amount, description, type, is_paid')
+  ])
 
   const txs = transactions || []
   const subs = subscriptions || []
