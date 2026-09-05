@@ -47,6 +47,7 @@ export interface TransactionItem {
   payer_id?: string | null;
   payers?: { name: string } | null;
   is_paid: boolean;
+  type?: string;
   splits?: SplitItem[];
 }
 
@@ -141,6 +142,9 @@ export function ReimbursementView({
   const payerMap: Record<string, PayerSummary> = {}
 
   transactions.forEach(tx => {
+    // Filtro de tipo: apenas despesas entram no relatório de acerto de contas
+    if (tx.type && tx.type !== 'expense') return
+
     // Filtro de workspace
     if (selectedWorkspace && tx.workspace_id !== selectedWorkspace) return
 

@@ -8,10 +8,11 @@ export default async function ReimbursementsPage() {
   const { data: cards } = await supabase.from('credit_cards').select('id, name, workspace_id')
   const { data: payers } = await supabase.from('payers').select('id, name, workspace_id')
 
-  // Busca transações com relacionamentos
+  // Busca apenas despesas com relacionamentos
   const { data: transactions } = await supabase
     .from('transactions')
-    .select('id, workspace_id, amount, date, due_date, description, credit_card_id, payer_id, is_paid, credit_cards(name), payers(name)')
+    .select('id, workspace_id, amount, date, due_date, description, credit_card_id, payer_id, is_paid, type, credit_cards(name), payers(name)')
+    .eq('type', 'expense')
     .order('date', { ascending: false })
 
   // Busca com segurança os splits (caso a tabela transaction_splits já tenha sido criada no Supabase)
