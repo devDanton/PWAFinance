@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Trash2, ArrowDownCircle, ArrowUpCircle, Pencil, Copy, ArrowUpDown, ArrowUp, ArrowDown, Filter, Download } from 'lucide-react'
+import { Plus, Trash2, ArrowDownCircle, ArrowUpCircle, Pencil, Copy, ArrowUpDown, ArrowUp, ArrowDown, Filter, Download, Split } from 'lucide-react'
 import { format } from 'date-fns'
 import { createTransaction, deleteTransaction, toggleTransactionPaid, updateTransaction } from '@/app/actions/transactions'
 import { updateTransactionSortPreference } from '@/app/actions/preferences'
@@ -19,6 +19,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { ImportCsvModal } from './import-csv-modal'
 import { BulkActionsBar } from './bulk-actions-bar'
 import { downloadTransactionTemplateCsv } from '@/lib/csv-template'
+import { SplitTransactionModal, TransactionToSplit } from './split-transaction-modal'
 
 export function TransactionList({ 
   initialTransactions, 
@@ -63,6 +64,9 @@ export function TransactionList({
 
   // Recurrence UI state
   const [isRecurring, setIsRecurring] = useState(false)
+
+  // Split Transaction state
+  const [splittingTx, setSplittingTx] = useState<TransactionToSplit | null>(null)
 
   // Client-side filtering & sorting
   let filteredTransactions = [...initialTransactions]
@@ -660,6 +664,9 @@ export function TransactionList({
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
+                        <Button variant="ghost" size="icon" onClick={() => setSplittingTx(tx)} className="text-muted-foreground hover:text-primary h-8 w-8" title="Ratear Despesa">
+                          <Split className="h-4 w-4" />
+                        </Button>
                         <Button variant="ghost" size="icon" onClick={() => handleClone(tx)} className="text-muted-foreground h-8 w-8" title="Clonar">
                           <Copy className="h-4 w-4" />
                         </Button>
@@ -684,6 +691,12 @@ export function TransactionList({
         workspaces={workspaces}
         cards={cards}
         categories={categories}
+      />
+      <SplitTransactionModal
+        transaction={splittingTx}
+        payers={payers}
+        open={Boolean(splittingTx)}
+        onOpenChange={(open) => { if (!open) setSplittingTx(null) }}
       />
     </div>
   )
