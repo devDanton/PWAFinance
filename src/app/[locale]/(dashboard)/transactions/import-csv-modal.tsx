@@ -24,6 +24,7 @@ interface ImportTransactionPreview {
   type: 'income' | 'expense';
   category_name: string;
   payer_name: string;
+  card_name: string;
   is_paid: boolean;
 }
 
@@ -56,6 +57,7 @@ export function ImportCsvModal({
     dueDate: '',
     isPaid: '',
     payer: '',
+    card: '',
   })
   
   const router = useRouter()
@@ -77,6 +79,7 @@ export function ImportCsvModal({
       dueDate: '',
       isPaid: '',
       payer: '',
+      card: '',
     })
   }
 
@@ -97,6 +100,7 @@ export function ImportCsvModal({
       dueDate: '',
       isPaid: '',
       payer: '',
+      card: '',
     }
     
     detectedHeaders.forEach(h => {
@@ -109,6 +113,7 @@ export function ImportCsvModal({
       else if (norm.includes('cat')) newMap.category = h
       else if (norm.includes('pago') || norm.includes('paid') || norm.includes('status')) newMap.isPaid = h
       else if (norm.includes('pagad') || norm.includes('payer')) newMap.payer = h
+      else if (norm.includes('cart') || norm.includes('card')) newMap.card = h
     })
     
     setMapping(newMap)
@@ -192,7 +197,7 @@ export function ImportCsvModal({
             guessMapping(detectedHeaders)
             setStep('mapping')
           } else {
-            alert('O texto informado parece estar vazio ou não pôde ser interpretado.')
+            alert('O texto informado parece estar vazio ou não pôde ser interpretado como dados tabulares.')
           }
         },
         error: (error) => {
@@ -255,6 +260,7 @@ export function ImportCsvModal({
         type,
         category_name: mapping.category && mapping.category !== 'none' ? String(row[mapping.category] || '').trim() : '',
         payer_name: mapping.payer && mapping.payer !== 'none' ? String(row[mapping.payer] || '').trim() : '',
+        card_name: mapping.card && mapping.card !== 'none' ? String(row[mapping.card] || '').trim() : '',
         is_paid: isPaid
       }
     }).filter(t => !isNaN(t.amount) && t.description && t.date)
@@ -311,7 +317,7 @@ export function ImportCsvModal({
                   <span className="text-sm font-semibold">Precisa da planilha modelo?</span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Baixe o modelo com todos os campos suportados (Data, Descrição, Valor, Tipo, Categoria, Vencimento, Pago e Pagador).
+                  Baixe o modelo com todos os campos (Data, Descrição, Valor, Tipo, Categoria, Vencimento, Pago, Pagador e Cartão).
                 </p>
               </div>
               <Button
@@ -339,7 +345,7 @@ export function ImportCsvModal({
                   </Select>
                 </div>
                 <div className="grid gap-2">
-                  <Label>Vincular a um Cartão (Opcional)</Label>
+                  <Label>Cartão Padrão (Opcional)</Label>
                   <Select value={cardId} onValueChange={setCardId}>
                     <SelectTrigger><SelectValue placeholder="Nenhum" /></SelectTrigger>
                     <SelectContent>
@@ -349,6 +355,7 @@ export function ImportCsvModal({
                       ))}
                     </SelectContent>
                   </Select>
+                  <p className="text-[11px] text-muted-foreground">Será aplicado caso uma linha não especifique um cartão.</p>
                 </div>
               </div>
 
@@ -392,12 +399,12 @@ export function ImportCsvModal({
                     <textarea
                       id="pasted-csv-text"
                       className="w-full min-h-[140px] p-3 rounded-md border border-input bg-background font-mono text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring placeholder:text-muted-foreground/60 leading-relaxed"
-                      placeholder={`Cole aqui o texto fornecido pelo Gemini ou copiado do Excel. Exemplo:\n\ndate;description;amount;type;category;due_date;is_paid;payer\n05/09/2026;Conserto pneu traseiro direito;40;Despesa;Transporte;05/09/2026;Sim;Danton`}
+                      placeholder={`Cole aqui o texto fornecido pelo Gemini ou copiado do Excel. Exemplo:\n\ndate;description;amount;type;category;due_date;is_paid;payer;card\n05/09/2026;Conserto pneu traseiro direito;40;Despesa;Transporte;05/09/2026;Sim;Danton;Nubank`}
                       value={pastedText}
                       onChange={(e) => setPastedText(e.target.value)}
                     />
                     <p className="text-[11px] text-muted-foreground">
-                      Dica: você pode colar diretamente com ponto e vírgula (;) ou vírgula (,), com ou sem blocos de código markdown do Gemini.
+                      Dica: você pode colar com ponto e vírgula (;) ou vírgula (,), com ou sem formatação markdown da IA.
                     </p>
                   </div>
                 )}
@@ -508,6 +515,19 @@ export function ImportCsvModal({
                     </SelectContent>
                   </Select>
                 </div>
+                <div className="space-y-2 sm:col-span-2">
+                  <Label>Cartão de Crédito (Opcional)</Label>
+                  <Select value={mapping.card} onValueChange={v => setMapping({...mapping, card: v === 'none' ? '' : v})}>
+                    <SelectTrigger><SelectValue placeholder="Padrão da configuração ou Nenhum" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Padrão da configuração ou Nenhum</SelectItem>
+                      {headers.map(h => <SelectItem key={'cd_'+h} value={h}>{h}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground">
+                    Reconhece o nome do cartão na coluna (ex: Nubank, Inter, XP). Se o cartão não existir, é criado automaticamente.
+                  </p>
+                </div>
               </div>
             </div>
             <DialogFooter>
@@ -524,7 +544,7 @@ export function ImportCsvModal({
             <DialogHeader>
               <DialogTitle>Resumo da Importação</DialogTitle>
               <DialogDescription>
-                {previewData.length} transações foram processadas com sucesso. Verifique os dados abaixo antes de salvar. Categorias e pagadores novos serão criados automaticamente.
+                {previewData.length} transações foram processadas com sucesso. Verifique os dados abaixo antes de salvar. Categorias, pagadores e cartões novos serão criados automaticamente.
               </DialogDescription>
             </DialogHeader>
             <div className="py-4 overflow-x-auto">
@@ -535,6 +555,7 @@ export function ImportCsvModal({
                     <TableHead>Descrição</TableHead>
                     <TableHead>Tipo</TableHead>
                     <TableHead>Categoria</TableHead>
+                    <TableHead>Cartão</TableHead>
                     <TableHead>Vencimento</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Pagador</TableHead>
@@ -552,6 +573,17 @@ export function ImportCsvModal({
                         </span>
                       </TableCell>
                       <TableCell>{tx.category_name || '-'}</TableCell>
+                      <TableCell className="whitespace-nowrap text-xs">
+                        {tx.card_name ? (
+                          <span className="px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-400 font-medium">
+                            {tx.card_name}
+                          </span>
+                        ) : cardId !== 'none' ? (
+                          <span className="text-muted-foreground">{cards.find(c => c.id === cardId)?.name}</span>
+                        ) : (
+                          '-'
+                        )}
+                      </TableCell>
                       <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{tx.due_date || tx.date}</TableCell>
                       <TableCell>
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${tx.is_paid ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'}`}>

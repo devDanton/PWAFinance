@@ -188,6 +188,7 @@ export async function importTransactions(payload: {
     type: 'income' | 'expense';
     category_name?: string;
     payer_name?: string;
+    card_name?: string;
     is_paid?: boolean;
   }[];
 }) {
@@ -284,6 +285,53 @@ export async function importTransactions(payload: {
     }
   }
 
+  // 3. Process credit cards
+  const uniqueCardNames = Array.from(new Set(
+    transactions.map(t => t.card_name?.trim()).filter(Boolean)
+  )) as string[];
+
+  const cardMap: Record<string, string> = {};
+
+  if (uniqueCardNames.length > 0) {
+    const { data: existingCards } = await supabase
+      .from('credit_cards')
+      .select('id, name')
+      .eq('workspace_id', workspace_id);
+
+    const existingCardNames = new Set((existingCards || []).map(c => c.name.toLowerCase()));
+    const missingCards = uniqueCardNames.filter(name => !existingCardNames.has(name.toLowerCase()));
+
+    if (missingCards.length > 0) {
+      const newCards = missingCards.map(name => ({
+        workspace_id,
+        owner_id: user.id,
+        name,
+        total_limit: 5000,
+        closing_day: 1,
+        due_day: 10,
+        color: '#6366f1'
+      }));
+
+      const { data: insertedCards, error: insertCardError } = await supabase
+        .from('credit_cards')
+        .insert(newCards)
+        .select('id, name');
+
+      if (insertCardError) {
+        return { error: 'Erro ao criar cartões automáticos: ' + insertCardError.message };
+      }
+
+      const allCards = [...(existingCards || []), ...(insertedCards || [])];
+      allCards.forEach(c => {
+        cardMap[c.name.toLowerCase()] = c.id;
+      });
+    } else {
+      (existingCards || []).forEach(c => {
+        cardMap[c.name.toLowerCase()] = c.id;
+      });
+    }
+  }
+
   // Format transactions for insertion
   const transactionsToInsert = transactions.map(t => {
     let category_id = null;
@@ -296,6 +344,14 @@ export async function importTransactions(payload: {
       payer_id = payerMap[t.payer_name.trim().toLowerCase()] || null;
     }
 
+    let tx_card_id = credit_card_id && credit_card_id !== 'none' ? credit_card_id : null;
+    if (t.card_name) {
+      const matched = cardMap[t.card_name.trim().toLowerCase()];
+      if (matched) {
+        tx_card_id = matched;
+      }
+    }
+
     return {
       workspace_id,
       created_by: user.id,
@@ -306,7 +362,7 @@ export async function importTransactions(payload: {
       description: t.description,
       category_id,
       payer_id,
-      credit_card_id: credit_card_id || null,
+      credit_card_id: tx_card_id,
       installments: 1,
       is_paid: t.is_paid !== undefined ? t.is_paid : true,
     };

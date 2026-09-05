@@ -7,13 +7,14 @@ export const TRANSACTION_CSV_COLUMNS = [
   'Vencimento',
   'Pago',
   'Pagador',
+  'Cartao',
 ] as const;
 
 export const TRANSACTION_CSV_SAMPLE_ROWS = [
-  ['2026-03-10', 'Supermercado Mensal', '450.50', 'Despesa', 'Alimentação', '2026-03-10', 'Sim', 'Principal'],
-  ['2026-03-15', 'Consultoria / Salário', '3200.00', 'Receita', 'Serviços', '2026-03-15', 'Sim', 'Cliente A'],
-  ['2026-03-20', 'Conta de Energia', '180.20', 'Despesa', 'Moradia', '2026-03-25', 'Não', 'Principal'],
-  ['2026-03-22', 'Assinatura Streaming', '55.90', 'Despesa', 'Lazer', '2026-03-22', 'Sim', 'Principal'],
+  ['2026-03-10', 'Supermercado Mensal', '450.50', 'Despesa', 'Alimentação', '2026-03-10', 'Sim', 'Principal', 'Nubank'],
+  ['2026-03-15', 'Consultoria / Salário', '3200.00', 'Receita', 'Serviços', '2026-03-15', 'Sim', 'Cliente A', ''],
+  ['2026-03-20', 'Conta de Energia', '180.20', 'Despesa', 'Moradia', '2026-03-25', 'Não', 'Principal', ''],
+  ['2026-03-22', 'Assinatura Streaming', '55.90', 'Despesa', 'Lazer', '2026-03-22', 'Sim', 'Principal', 'XP Visa Infinite'],
 ];
 
 /**
