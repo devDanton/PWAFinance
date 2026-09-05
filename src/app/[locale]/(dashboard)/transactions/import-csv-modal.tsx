@@ -205,7 +205,7 @@ export function ImportCsvModal({
             alert('O texto informado parece estar vazio ou não pôde ser interpretado como dados tabulares.')
           }
         },
-        error: (error) => {
+        error: (error: Error) => {
           alert('Erro ao interpretar texto: ' + error.message)
         }
       })
