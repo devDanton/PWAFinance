@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname } from "@/i18n/routing"
-import { LayoutDashboard, ReceiptText, CreditCard, Wallet, Users, Settings, Repeat, Tags } from "lucide-react"
+import { LayoutDashboard, ReceiptText, CreditCard, Wallet, Users, Settings, Repeat, Tags, HandCoins } from "lucide-react"
 
 export function Sidebar() {
   const pathname = usePathname()
@@ -11,6 +11,7 @@ export function Sidebar() {
     { name: "Dashboard", href: "/", icon: LayoutDashboard },
     { name: "Transações", href: "/transactions", icon: ReceiptText },
     { name: "Cartões", href: "/cards", icon: CreditCard },
+    { name: "Acerto de Contas", href: "/reimbursements", icon: HandCoins },
     { name: "Assinaturas", href: "/subscriptions", icon: Repeat },
     { name: "Categorias", href: "/categories", icon: Tags },
     { name: "Pagadores", href: "/payers", icon: Users },

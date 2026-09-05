@@ -177,6 +177,12 @@ export async function updateTransaction(id: string, formData: FormData) {
   return { success: true }
 }
 
+export interface TransactionSplitInput {
+  payer_name: string;
+  amount: number;
+  is_paid?: boolean;
+}
+
 export async function importTransactions(payload: {
   workspace_id: string;
   credit_card_id?: string | null;
@@ -190,6 +196,7 @@ export async function importTransactions(payload: {
     payer_name?: string;
     card_name?: string;
     is_paid?: boolean;
+    splits?: TransactionSplitInput[];
   }[];
 }) {
   const supabase = await createClient();
@@ -243,10 +250,17 @@ export async function importTransactions(payload: {
     }
   }
 
-  // 2. Process payers
-  const uniquePayerNames = Array.from(new Set(
-    transactions.map(t => t.payer_name?.trim()).filter(Boolean)
-  )) as string[];
+  // 2. Process payers (from both direct payer_name and splits)
+  const allPayerNames: string[] = [];
+  transactions.forEach(t => {
+    if (t.payer_name?.trim()) allPayerNames.push(t.payer_name.trim());
+    if (t.splits && t.splits.length > 0) {
+      t.splits.forEach(s => {
+        if (s.payer_name?.trim()) allPayerNames.push(s.payer_name.trim());
+      });
+    }
+  });
+  const uniquePayerNames = Array.from(new Set(allPayerNames));
 
   const payerMap: Record<string, string> = {};
 
@@ -368,9 +382,50 @@ export async function importTransactions(payload: {
     };
   });
 
-  const { error } = await supabase.from('transactions').insert(transactionsToInsert);
+  const { data: insertedTxs, error } = await supabase
+    .from('transactions')
+    .insert(transactionsToInsert)
+    .select('id');
 
   if (error) return { error: error.message };
+
+  // If there are splits, insert them into transaction_splits
+  if (insertedTxs && insertedTxs.length === transactions.length) {
+    const splitsToInsert: Array<{
+      transaction_id: string;
+      payer_id: string;
+      amount: number;
+      is_paid: boolean;
+    }> = [];
+
+    transactions.forEach((t, idx) => {
+      if (t.splits && t.splits.length > 0) {
+        const txId = insertedTxs[idx]?.id;
+        if (txId) {
+          t.splits.forEach(s => {
+            const pId = payerMap[s.payer_name.trim().toLowerCase()];
+            if (pId) {
+              splitsToInsert.push({
+                transaction_id: txId,
+                payer_id: pId,
+                amount: s.amount,
+                is_paid: s.is_paid !== undefined ? s.is_paid : false,
+              });
+            }
+          });
+        }
+      }
+    });
+
+    if (splitsToInsert.length > 0) {
+      const { error: splitError } = await supabase
+        .from('transaction_splits')
+        .insert(splitsToInsert);
+      if (splitError) {
+        console.warn('Erro ao inserir splits (verifique se a tabela transaction_splits foi criada):', splitError.message);
+      }
+    }
+  }
 
   revalidatePath('/', 'layout');
   return { success: true, count: transactionsToInsert.length };

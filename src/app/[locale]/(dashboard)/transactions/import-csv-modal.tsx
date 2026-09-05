@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { importTransactions } from '@/app/actions/transactions'
-import { downloadTransactionTemplateCsv } from '@/lib/csv-template'
+import { downloadTransactionTemplateCsv, parseSplits, TransactionSplitInput } from '@/lib/csv-template'
 import { useRouter } from 'next/navigation'
 
 type ImportStep = 'setup' | 'mapping' | 'preview' | 'importing'
@@ -26,6 +26,7 @@ interface ImportTransactionPreview {
   payer_name: string;
   card_name: string;
   is_paid: boolean;
+  splits?: TransactionSplitInput[];
 }
 
 export function ImportCsvModal({
@@ -58,6 +59,7 @@ export function ImportCsvModal({
     isPaid: '',
     payer: '',
     card: '',
+    split: '',
   })
   
   const router = useRouter()
@@ -80,6 +82,7 @@ export function ImportCsvModal({
       isPaid: '',
       payer: '',
       card: '',
+      split: '',
     })
   }
 
@@ -101,11 +104,13 @@ export function ImportCsvModal({
       isPaid: '',
       payer: '',
       card: '',
+      split: '',
     }
     
     detectedHeaders.forEach(h => {
       const norm = normalize(h)
-      if (norm.includes('venc') || norm.includes('due')) newMap.dueDate = h
+      if (norm.includes('rateio') || norm.includes('split') || norm.includes('divis')) newMap.split = h
+      else if (norm.includes('venc') || norm.includes('due')) newMap.dueDate = h
       else if (norm.includes('data') || norm.includes('date')) newMap.date = h
       else if (norm.includes('desc') || norm.includes('titulo') || norm.includes('title') || norm.includes('historico')) newMap.description = h
       else if (norm.includes('valor') || norm.includes('amount') || norm.includes('preco')) newMap.amount = h
@@ -252,6 +257,12 @@ export function ImportCsvModal({
         if (p.includes('nao') || p.includes('não') || p.includes('false') || p === '0' || p.includes('pend')) isPaid = false
       }
 
+      // Parse splits if split column is mapped
+      let splits: TransactionSplitInput[] = []
+      if (mapping.split && row[mapping.split]) {
+        splits = parseSplits(String(row[mapping.split]), amount)
+      }
+
       return {
         date,
         due_date: dueDate || date,
@@ -261,7 +272,8 @@ export function ImportCsvModal({
         category_name: mapping.category && mapping.category !== 'none' ? String(row[mapping.category] || '').trim() : '',
         payer_name: mapping.payer && mapping.payer !== 'none' ? String(row[mapping.payer] || '').trim() : '',
         card_name: mapping.card && mapping.card !== 'none' ? String(row[mapping.card] || '').trim() : '',
-        is_paid: isPaid
+        is_paid: isPaid,
+        splits: splits.length > 0 ? splits : undefined
       }
     }).filter(t => !isNaN(t.amount) && t.description && t.date)
 
@@ -317,7 +329,7 @@ export function ImportCsvModal({
                   <span className="text-sm font-semibold">Precisa da planilha modelo?</span>
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  Baixe o modelo com todos os campos (Data, Descrição, Valor, Tipo, Categoria, Vencimento, Pago, Pagador e Cartão).
+                  Baixe o modelo com todos os campos (Data, Descrição, Valor, Tipo, Categoria, Vencimento, Pago, Pagador, Cartão e Rateio).
                 </p>
               </div>
               <Button
@@ -399,7 +411,7 @@ export function ImportCsvModal({
                     <textarea
                       id="pasted-csv-text"
                       className="w-full min-h-[140px] p-3 rounded-md border border-input bg-background font-mono text-xs focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring placeholder:text-muted-foreground/60 leading-relaxed"
-                      placeholder={`Cole aqui o texto fornecido pelo Gemini ou copiado do Excel. Exemplo:\n\ndate;description;amount;type;category;due_date;is_paid;payer;card\n05/09/2026;Conserto pneu traseiro direito;40;Despesa;Transporte;05/09/2026;Sim;Danton;Nubank`}
+                      placeholder={`Cole aqui o texto fornecido pelo Gemini ou copiado do Excel. Exemplo:\n\ndate;description;amount;type;category;due_date;is_paid;payer;card;rateio\n05/09/2026;Almoço Outback;300;Despesa;Alimentação;25/09/2026;Sim;;XP;Danton: 100; João: 100; Maria: 100\n06/09/2026;Pneu Carro;40;Despesa;Transporte;06/09/2026;Sim;Danton;Nubank;`}
                       value={pastedText}
                       onChange={(e) => setPastedText(e.target.value)}
                     />
@@ -506,7 +518,7 @@ export function ImportCsvModal({
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label>Pagador / Responsável (Opcional)</Label>
+                  <Label>Pagador Único (Opcional)</Label>
                   <Select value={mapping.payer} onValueChange={v => setMapping({...mapping, payer: v === 'none' ? '' : v})}>
                     <SelectTrigger><SelectValue placeholder="Nenhum" /></SelectTrigger>
                     <SelectContent>
@@ -515,7 +527,7 @@ export function ImportCsvModal({
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2 sm:col-span-2">
+                <div className="space-y-2">
                   <Label>Cartão de Crédito (Opcional)</Label>
                   <Select value={mapping.card} onValueChange={v => setMapping({...mapping, card: v === 'none' ? '' : v})}>
                     <SelectTrigger><SelectValue placeholder="Padrão da configuração ou Nenhum" /></SelectTrigger>
@@ -524,8 +536,18 @@ export function ImportCsvModal({
                       {headers.map(h => <SelectItem key={'cd_'+h} value={h}>{h}</SelectItem>)}
                     </SelectContent>
                   </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Rateio / Divisão entre Pessoas (Opcional)</Label>
+                  <Select value={mapping.split} onValueChange={v => setMapping({...mapping, split: v === 'none' ? '' : v})}>
+                    <SelectTrigger><SelectValue placeholder="Nenhum rateio" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Nenhum rateio</SelectItem>
+                      {headers.map(h => <SelectItem key={'sp_'+h} value={h}>{h}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                   <p className="text-[11px] text-muted-foreground">
-                    Reconhece o nome do cartão na coluna (ex: Nubank, Inter, XP). Se o cartão não existir, é criado automaticamente.
+                    Ex: Danton: 100; João: 100; Maria: 100
                   </p>
                 </div>
               </div>
@@ -556,10 +578,10 @@ export function ImportCsvModal({
                     <TableHead>Tipo</TableHead>
                     <TableHead>Categoria</TableHead>
                     <TableHead>Cartão</TableHead>
+                    <TableHead>Pagador / Rateio</TableHead>
                     <TableHead>Vencimento</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Pagador</TableHead>
-                    <TableHead className="text-right">Valor</TableHead>
+                    <TableHead className="text-right">Valor Total</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -584,13 +606,30 @@ export function ImportCsvModal({
                           '-'
                         )}
                       </TableCell>
+                      <TableCell className="text-xs">
+                        {tx.splits && tx.splits.length > 0 ? (
+                          <div className="flex flex-col gap-1 max-w-[180px]">
+                            <span className="font-semibold text-blue-600 dark:text-blue-400 text-[11px]">
+                              Rateado ({tx.splits.length} pessoas):
+                            </span>
+                            <div className="flex flex-wrap gap-1">
+                              {tx.splits.map((s, sIdx) => (
+                                <span key={sIdx} className="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-700 dark:text-blue-300 text-[10px]">
+                                  {s.payer_name}: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(s.amount)}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ) : (
+                          tx.payer_name || '-'
+                        )}
+                      </TableCell>
                       <TableCell className="whitespace-nowrap text-xs text-muted-foreground">{tx.due_date || tx.date}</TableCell>
                       <TableCell>
                         <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${tx.is_paid ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'}`}>
                           {tx.is_paid ? 'Pago' : 'Pendente'}
                         </span>
                       </TableCell>
-                      <TableCell className="text-xs">{tx.payer_name || '-'}</TableCell>
                       <TableCell className="text-right font-medium whitespace-nowrap">
                         {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(tx.amount)}
                       </TableCell>
@@ -616,7 +655,7 @@ export function ImportCsvModal({
         {step === 'importing' && (
           <div className="py-12 flex flex-col items-center justify-center space-y-4">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
-            <p className="text-lg font-medium">Salvando transações...</p>
+            <p className="text-lg font-medium">Salvando transações e rateios...</p>
           </div>
         )}
       </DialogContent>
