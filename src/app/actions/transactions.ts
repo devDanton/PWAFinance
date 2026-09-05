@@ -182,10 +182,12 @@ export async function importTransactions(payload: {
   credit_card_id?: string | null;
   transactions: {
     date: string;
+    due_date?: string;
     description: string;
     amount: number;
     type: 'income' | 'expense';
     category_name?: string;
+    payer_name?: string;
     is_paid?: boolean;
   }[];
 }) {
@@ -197,7 +199,7 @@ export async function importTransactions(payload: {
   
   if (!transactions || transactions.length === 0) return { error: 'Nenhuma transação para importar' };
 
-  // Get unique category names to check/create
+  // 1. Process categories
   const uniqueCategoryNames = Array.from(new Set(
     transactions.map(t => t.category_name?.trim()).filter(Boolean)
   )) as string[];
@@ -205,18 +207,14 @@ export async function importTransactions(payload: {
   const categoryMap: Record<string, string> = {};
 
   if (uniqueCategoryNames.length > 0) {
-    // Fetch existing categories in workspace
     const { data: existingCategories } = await supabase
       .from('categories')
       .select('id, name')
       .eq('workspace_id', workspace_id);
 
     const existingNames = new Set((existingCategories || []).map(c => c.name.toLowerCase()));
-    
-    // Determine which ones are missing
     const missingNames = uniqueCategoryNames.filter(name => !existingNames.has(name.toLowerCase()));
 
-    // Create missing categories
     if (missingNames.length > 0) {
       const newCategories = missingNames.map(name => ({
         workspace_id,
@@ -244,11 +242,58 @@ export async function importTransactions(payload: {
     }
   }
 
+  // 2. Process payers
+  const uniquePayerNames = Array.from(new Set(
+    transactions.map(t => t.payer_name?.trim()).filter(Boolean)
+  )) as string[];
+
+  const payerMap: Record<string, string> = {};
+
+  if (uniquePayerNames.length > 0) {
+    const { data: existingPayers } = await supabase
+      .from('payers')
+      .select('id, name')
+      .eq('workspace_id', workspace_id);
+
+    const existingPayerNames = new Set((existingPayers || []).map(p => p.name.toLowerCase()));
+    const missingPayers = uniquePayerNames.filter(name => !existingPayerNames.has(name.toLowerCase()));
+
+    if (missingPayers.length > 0) {
+      const newPayers = missingPayers.map(name => ({
+        workspace_id,
+        name
+      }));
+
+      const { data: insertedPayers, error: insertPayerError } = await supabase
+        .from('payers')
+        .insert(newPayers)
+        .select('id, name');
+
+      if (insertPayerError) {
+        return { error: 'Erro ao criar pagadores automáticos: ' + insertPayerError.message };
+      }
+
+      const allPayers = [...(existingPayers || []), ...(insertedPayers || [])];
+      allPayers.forEach(p => {
+        payerMap[p.name.toLowerCase()] = p.id;
+      });
+    } else {
+      (existingPayers || []).forEach(p => {
+        payerMap[p.name.toLowerCase()] = p.id;
+      });
+    }
+  }
+
   // Format transactions for insertion
   const transactionsToInsert = transactions.map(t => {
     let category_id = null;
     if (t.category_name) {
       category_id = categoryMap[t.category_name.trim().toLowerCase()] || null;
+    }
+
+    let payer_id = null;
+    if (t.payer_name) {
+      payer_id = payerMap[t.payer_name.trim().toLowerCase()] || null;
     }
 
     return {
@@ -257,9 +302,10 @@ export async function importTransactions(payload: {
       type: t.type,
       amount: t.amount,
       date: t.date,
-      due_date: t.date,
+      due_date: t.due_date || t.date,
       description: t.description,
       category_id,
+      payer_id,
       credit_card_id: credit_card_id || null,
       installments: 1,
       is_paid: t.is_paid !== undefined ? t.is_paid : true,
@@ -306,7 +352,7 @@ export async function bulkUpdateTransactions(ids: string[], data: {
   if (!ids || ids.length === 0) return { error: 'Nenhum ID fornecido' };
   
   // clean up data to only include defined values
-  const payload: any = {};
+  const payload: Record<string, unknown> = {};
   if (data.category_id !== undefined) payload.category_id = data.category_id;
   if (data.credit_card_id !== undefined) payload.credit_card_id = data.credit_card_id;
   if (data.workspace_id !== undefined) payload.workspace_id = data.workspace_id;

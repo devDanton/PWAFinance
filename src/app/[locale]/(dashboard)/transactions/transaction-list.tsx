@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Plus, Trash2, ArrowDownCircle, ArrowUpCircle, Pencil, Copy, ArrowUpDown, ArrowUp, ArrowDown, Filter } from 'lucide-react'
+import { Plus, Trash2, ArrowDownCircle, ArrowUpCircle, Pencil, Copy, ArrowUpDown, ArrowUp, ArrowDown, Filter, Download } from 'lucide-react'
 import { format } from 'date-fns'
 import { createTransaction, deleteTransaction, toggleTransactionPaid, updateTransaction } from '@/app/actions/transactions'
 import { updateTransactionSortPreference } from '@/app/actions/preferences'
@@ -18,6 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 
 import { ImportCsvModal } from './import-csv-modal'
 import { BulkActionsBar } from './bulk-actions-bar'
+import { downloadTransactionTemplateCsv } from '@/lib/csv-template'
 
 export function TransactionList({ 
   initialTransactions, 
@@ -377,6 +378,15 @@ export function TransactionList({
         </div>
 
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="hidden sm:inline-flex text-xs h-9"
+            onClick={() => downloadTransactionTemplateCsv()}
+            title="Baixar planilha modelo (CSV) para importação"
+          >
+            <Download className="mr-1.5 h-3.5 w-3.5" /> Modelo CSV
+          </Button>
           <ImportCsvModal workspaces={workspaces} cards={cards} />
 
           <Dialog open={open} onOpenChange={(val) => { setOpen(val); if (!val) { setEditingTx(null); setIsCloning(false); } }}>
