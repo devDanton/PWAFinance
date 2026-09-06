@@ -37,7 +37,7 @@ Ideal para quem concentra compras da família ou de amigos em seus cartões de c
     ```text
     Olá *Carlos*! Segue o resumo dos seus gastos no cartão em *setembro de 2026*:
 
-    💳 *Nubank*:
+    💳 *Nubank* (Total: *R$ 30,00*):
     • 08/09 - Uber Viagem: *R$ 30,00* _(Rateio de R$ 60,00)_
 
     💰 *Total a pagar: R$ 30,00*

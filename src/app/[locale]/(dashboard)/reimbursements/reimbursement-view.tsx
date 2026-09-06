@@ -296,7 +296,9 @@ export function ReimbursementView({
     let message = `Olá *${payer.payerName}*! Segue o resumo dos seus gastos no cartão em *${monthFormatted}*:\n\n`
 
     Object.entries(byCard).forEach(([card, items]) => {
-      message += `💳 *${card}*:\n`
+      const cardTotal = items.reduce((sum, it) => sum + it.amount, 0)
+      const formattedCardTotal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cardTotal)
+      message += `💳 *${card}* (Total: *${formattedCardTotal}*):\n`
       items.forEach(it => {
         const d = it.date.split('-').reverse().slice(0, 2).join('/')
         const formattedAmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(it.amount)
