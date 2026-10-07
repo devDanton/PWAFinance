@@ -16,7 +16,7 @@ export default async function TransactionsPage() {
   const [sortField, sortDir] = sortPref.split(':')
 
   // Prevent Postgrest error if sortField is a relationship (like 'categories')
-  const validSortColumns = ['date', 'amount', 'description', 'created_at', 'type', 'is_paid']
+  const validSortColumns = ['date', 'due_date', 'amount', 'description', 'created_at', 'type', 'is_paid']
   const safeSortField = validSortColumns.includes(sortField) ? sortField : 'date'
 
   const { data: transactions } = await supabase

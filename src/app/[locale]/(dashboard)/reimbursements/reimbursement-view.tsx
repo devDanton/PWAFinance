@@ -14,14 +14,22 @@ import {
   CheckCircle2, 
   Clock, 
   Split, 
-  X
+  X,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Camera,
+  Loader2,
+  Eye
 } from 'lucide-react'
+import { toPng } from 'html-to-image'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { toggleSplitPaid, markAllItemsPaid } from '@/app/actions/splits'
 import { toggleTransactionPaid } from '@/app/actions/transactions'
 import { useRouter } from 'next/navigation'
@@ -102,6 +110,17 @@ export function ReimbursementView({
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'paid'>('all')
   const [searchPayer, setSearchPayer] = useState('')
 
+  // Ordenação da lista de terceiros
+  const [payerSort, setPayerSort] = useState<'pending_desc' | 'total_desc' | 'name_asc' | 'name_desc'>('pending_desc')
+
+  // Ordenação das tabelas de gastos de cada terceiro
+  const [tableSortField, setTableSortField] = useState<'date' | 'cardName' | 'description' | 'amount' | 'isPaid'>('date')
+  const [tableSortDir, setTableSortDir] = useState<'asc' | 'desc'>('desc')
+
+  // Estado de loading para geração de imagem em alta resolução
+  const [generatingImagePayerId, setGeneratingImagePayerId] = useState<string | null>(null)
+  const [previewPayer, setPreviewPayer] = useState<PayerSummary | null>(null)
+
   // Titulares a serem desconsiderados no relatório de cobrança externa
   const [excludedTitulars, setExcludedTitulars] = useState<string[]>(['danton', 'lauren'])
   const [newTitularInput, setNewTitularInput] = useState('')
@@ -136,6 +155,51 @@ export function ReimbursementView({
 
   function removeExcludedTitular(name: string) {
     setExcludedTitulars(excludedTitulars.filter(n => n !== name))
+  }
+
+  function handleTableSort(field: 'date' | 'cardName' | 'description' | 'amount' | 'isPaid') {
+    if (tableSortField === field) {
+      setTableSortDir(prev => prev === 'asc' ? 'desc' : 'asc')
+    } else {
+      setTableSortField(field)
+      setTableSortDir(field === 'date' || field === 'amount' ? 'desc' : 'asc')
+    }
+  }
+
+  function getTableSortIcon(field: string) {
+    if (tableSortField !== field) return <ArrowUpDown className="ml-1 h-3 w-3 text-muted-foreground/30 inline" />
+    return tableSortDir === 'asc' 
+      ? <ArrowUp className="ml-1 h-3 w-3 text-primary inline" /> 
+      : <ArrowDown className="ml-1 h-3 w-3 text-primary inline" />
+  }
+
+  function getSortedExpenses(expenses: PayerExpenseDetail[]) {
+    return [...expenses].sort((a, b) => {
+      if (tableSortField === 'date') {
+        const timeA = new Date(a.date + 'T12:00:00Z').getTime() || 0
+        const timeB = new Date(b.date + 'T12:00:00Z').getTime() || 0
+        return tableSortDir === 'asc' ? timeA - timeB : timeB - timeA
+      }
+      if (tableSortField === 'amount') {
+        return tableSortDir === 'asc' ? a.amount - b.amount : b.amount - a.amount
+      }
+      if (tableSortField === 'isPaid') {
+        const pA = a.isPaid ? 1 : 0
+        const pB = b.isPaid ? 1 : 0
+        return tableSortDir === 'asc' ? pA - pB : pB - pA
+      }
+      if (tableSortField === 'cardName') {
+        return tableSortDir === 'asc' 
+          ? a.cardName.localeCompare(b.cardName, 'pt-BR') 
+          : b.cardName.localeCompare(a.cardName, 'pt-BR')
+      }
+      if (tableSortField === 'description') {
+        return tableSortDir === 'asc' 
+          ? a.description.localeCompare(b.description, 'pt-BR') 
+          : b.description.localeCompare(a.description, 'pt-BR')
+      }
+      return 0
+    })
   }
 
   // 2. Agregação e Processamento dos Dados
@@ -239,8 +303,8 @@ export function ReimbursementView({
     }
   })
 
-  // Lista ordenada de pagadores
-  let payerList = Object.values(payerMap).sort((a, b) => b.totalPending - a.totalPending || b.totalAmount - a.totalAmount)
+  // Lista de pagadores com filtros
+  let payerList = Object.values(payerMap)
 
   // Filtro por busca de nome
   if (searchPayer.trim()) {
@@ -253,6 +317,17 @@ export function ReimbursementView({
     payerList = payerList.filter(p => p.totalPending > 0)
   } else if (statusFilter === 'paid') {
     payerList = payerList.filter(p => p.totalPending === 0 && p.totalPaid > 0)
+  }
+
+  // Ordenação configurável da lista de pagadores
+  if (payerSort === 'pending_desc') {
+    payerList.sort((a, b) => b.totalPending - a.totalPending || b.totalAmount - a.totalAmount)
+  } else if (payerSort === 'total_desc') {
+    payerList.sort((a, b) => b.totalAmount - a.totalAmount || b.totalPending - a.totalPending)
+  } else if (payerSort === 'name_asc') {
+    payerList.sort((a, b) => a.payerName.localeCompare(b.payerName, 'pt-BR'))
+  } else if (payerSort === 'name_desc') {
+    payerList.sort((a, b) => b.payerName.localeCompare(a.payerName, 'pt-BR'))
   }
 
   // Totais Gerais
@@ -340,7 +415,68 @@ export function ReimbursementView({
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
-    URL.revokeObjectURL(url)
+  }
+
+  async function handleDownloadPayerImage(payer: PayerSummary, customNodeId?: string) {
+    try {
+      setGeneratingImagePayerId(payer.payerId)
+      const elementId = customNodeId || 'receipt-preview-modal'
+      const node = document.getElementById(elementId)
+      if (!node) {
+        console.error('Elemento do demonstrativo não encontrado:', elementId)
+        return
+      }
+
+      // Garante captura integral mesmo se houver scroll lateral interno
+      const width = Math.max(node.scrollWidth, node.offsetWidth, 750)
+      const height = Math.max(node.scrollHeight, node.offsetHeight, 400)
+
+      // Converte para PNG em alta resolução (escala 2.5x)
+      const dataUrl = await toPng(node, {
+        pixelRatio: 2.5,
+        backgroundColor: '#ffffff',
+        skipFonts: true,
+        cacheBust: true,
+        canvasWidth: width,
+        canvasHeight: height,
+        width: width,
+        height: height,
+        style: {
+          position: 'static',
+          top: '0px',
+          left: '0px',
+          right: 'auto',
+          bottom: 'auto',
+          margin: '0px',
+          zIndex: '1',
+          visibility: 'visible',
+          display: 'block',
+          opacity: '1',
+          transform: 'none',
+          width: `${width}px`,
+          minWidth: `${width}px`,
+        }
+      })
+
+      const link = document.createElement('a')
+      const safePayerName = payer.payerName.toLowerCase().trim().replace(/[^a-z0-9]/g, '_')
+      link.download = `comprovante_${safePayerName}_${selectedMonth}.png`
+      link.href = dataUrl
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    } catch (error) {
+      console.error('Falha ao gerar imagem do comprovante:', error)
+    } finally {
+      setGeneratingImagePayerId(null)
+    }
+  }
+
+  function handleOpenReceiptAndDownload(payer: PayerSummary) {
+    setPreviewPayer(payer)
+    setTimeout(() => {
+      handleDownloadPayerImage(payer, 'receipt-preview-modal')
+    }, 400)
   }
 
   return (
@@ -515,16 +651,29 @@ export function ReimbursementView({
 
       {/* 4. Lista de Pessoas / Extratos */}
       <div className="space-y-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <h2 className="text-lg font-bold">Relação por Terceiro ({payerList.length})</h2>
-          <div className="relative w-48 sm:w-64">
-            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-            <Input 
-              placeholder="Buscar terceiro..." 
-              value={searchPayer}
-              onChange={e => setSearchPayer(e.target.value)}
-              className="pl-8 h-8 text-xs"
-            />
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={payerSort} onValueChange={(v: 'pending_desc' | 'total_desc' | 'name_asc' | 'name_desc') => setPayerSort(v)}>
+              <SelectTrigger className="w-40 h-8 text-xs">
+                <SelectValue placeholder="Ordenar Terceiros" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pending_desc">Maior Pendente</SelectItem>
+                <SelectItem value="total_desc">Maior Total</SelectItem>
+                <SelectItem value="name_asc">Nome (A - Z)</SelectItem>
+                <SelectItem value="name_desc">Nome (Z - A)</SelectItem>
+              </SelectContent>
+            </Select>
+            <div className="relative w-44 sm:w-60">
+              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+              <Input 
+                placeholder="Buscar terceiro..." 
+                value={searchPayer}
+                onChange={e => setSearchPayer(e.target.value)}
+                className="pl-8 h-8 text-xs"
+              />
+            </div>
           </div>
         </div>
 
@@ -537,171 +686,430 @@ export function ReimbursementView({
             </p>
           </Card>
         ) : (
-          payerList.map(payer => (
-            <Card key={payer.payerId} className="overflow-hidden border shadow-sm">
-              {/* Cabeçalho do Pagador */}
-              <div className="p-4 bg-muted/30 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm uppercase">
-                    {payer.payerName.slice(0, 2)}
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-base flex items-center gap-2">
-                      {payer.payerName}
-                      {payer.totalPending === 0 ? (
-                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
-                          Quitado
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/15 text-amber-600 dark:text-amber-400">
-                          Pendente
-                        </span>
-                      )}
-                    </h3>
-                    <p className="text-xs text-muted-foreground">
-                      {payer.expenses.length} compra(s) vinculada(s)
-                    </p>
-                  </div>
-                </div>
+          payerList.map(payer => {
+            const sortedExpenses = getSortedExpenses(payer.expenses)
+            const isGeneratingImage = generatingImagePayerId === payer.payerId
 
-                {/* Resumo Financeiro da Pessoa e Ações Rápidas */}
-                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                  <div className="text-right mr-2">
-                    <div className="text-xs text-muted-foreground">Pendente</div>
-                    <div className={`text-base font-bold ${payer.totalPending > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600'}`}>
-                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(payer.totalPending)}
+            return (
+              <Card key={payer.payerId} className="overflow-hidden border shadow-sm">
+                {/* Cabeçalho do Pagador */}
+                <div className="p-4 bg-muted/30 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-3">
+                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm uppercase">
+                      {payer.payerName.slice(0, 2)}
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-base flex items-center gap-2">
+                        {payer.payerName}
+                        {payer.totalPending === 0 ? (
+                          <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                            Quitado
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                            Pendente
+                          </span>
+                        )}
+                      </h3>
+                      <p className="text-xs text-muted-foreground">
+                        {payer.expenses.length} compra(s) vinculada(s)
+                      </p>
                     </div>
                   </div>
 
-                  {/* Botão Copiar WhatsApp */}
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="h-8 text-xs gap-1.5 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/10"
-                    onClick={() => handleCopyWhatsApp(payer)}
-                  >
-                    {copiedPayerId === payer.payerId ? (
-                      <>
-                        <Check className="h-3.5 w-3.5 text-emerald-600" /> Copiado!
-                      </>
-                    ) : (
-                      <>
-                        <Share2 className="h-3.5 w-3.5" /> Enviar WhatsApp
-                      </>
-                    )}
-                  </Button>
+                  {/* Resumo Financeiro da Pessoa (Total e Pendente) e Ações Rápidas */}
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-4">
+                    <div className="flex items-center gap-3 mr-1">
+                      <div className="text-right">
+                        <div className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">Total</div>
+                        <div className="text-sm sm:text-base font-bold text-foreground">
+                          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(payer.totalAmount)}
+                        </div>
+                      </div>
 
-                  {/* Botão Exportar CSV */}
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="h-8 text-xs gap-1"
-                    onClick={() => handleExportPayerCsv(payer)}
-                    title="Baixar extrato em CSV"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                  </Button>
+                      <div className="text-right border-l pl-3">
+                        <div className="text-[11px] text-muted-foreground font-medium uppercase tracking-wider">Pendente</div>
+                        <div className={`text-sm sm:text-base font-bold ${payer.totalPending > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600'}`}>
+                          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(payer.totalPending)}
+                        </div>
+                      </div>
+                    </div>
 
-                  {/* Marcar Tudo Pago/Pendente */}
-                  {payer.totalPending > 0 ? (
+                    {/* Botão Baixar Imagem (Print em Alta Resolução) */}
                     <Button 
-                      variant="secondary" 
+                      variant="outline" 
+                      size="sm" 
+                      className="h-8 text-xs gap-1.5 text-blue-700 dark:text-blue-300 border-blue-500/30 hover:bg-blue-500/10"
+                      onClick={() => handleOpenReceiptAndDownload(payer)}
+                      disabled={isGeneratingImage}
+                      title="Visualizar e baixar imagem em alta resolução"
+                    >
+                      {isGeneratingImage ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Gerando...
+                        </>
+                      ) : (
+                        <>
+                          <Camera className="h-3.5 w-3.5" /> Baixar Imagem
+                        </>
+                      )}
+                    </Button>
+
+                    {/* Botão Ver Comprovante */}
+                    <Button 
+                      variant="outline" 
                       size="sm" 
                       className="h-8 text-xs gap-1.5"
-                      onClick={() => handleMarkAllPayerPaid(payer, true)}
-                      disabled={isPending}
+                      onClick={() => setPreviewPayer(payer)}
+                      title="Visualizar demonstrativo formatado na tela"
                     >
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> Marcar Pago
+                      <Eye className="h-3.5 w-3.5" /> Ver Comprovante
                     </Button>
-                  ) : (
+
+                    {/* Botão Copiar WhatsApp */}
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="h-8 text-xs gap-1.5 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/10"
+                      onClick={() => handleCopyWhatsApp(payer)}
+                    >
+                      {copiedPayerId === payer.payerId ? (
+                        <>
+                          <Check className="h-3.5 w-3.5 text-emerald-600" /> Copiado!
+                        </>
+                      ) : (
+                        <>
+                          <Share2 className="h-3.5 w-3.5" /> Enviar WhatsApp
+                        </>
+                      )}
+                    </Button>
+
+                    {/* Botão Exportar CSV */}
                     <Button 
                       variant="ghost" 
                       size="sm" 
-                      className="h-8 text-xs text-muted-foreground"
-                      onClick={() => handleMarkAllPayerPaid(payer, false)}
-                      disabled={isPending}
+                      className="h-8 text-xs gap-1"
+                      onClick={() => handleExportPayerCsv(payer)}
+                      title="Baixar extrato em CSV"
                     >
-                      Desfazer Pagamento
+                      <Download className="h-3.5 w-3.5" />
                     </Button>
-                  )}
-                </div>
-              </div>
 
-              {/* Tabela de Despesas da Pessoa */}
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="text-xs hover:bg-transparent">
-                      <TableHead className="w-[100px]">Data</TableHead>
-                      <TableHead>Cartão</TableHead>
-                      <TableHead>Descrição</TableHead>
-                      <TableHead>Tipo</TableHead>
-                      <TableHead className="text-right">Valor Devido</TableHead>
-                      <TableHead className="text-center w-[120px]">Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {payer.expenses.map(expense => (
-                      <TableRow key={expense.id} className="text-xs">
-                        <TableCell className="whitespace-nowrap font-medium">
-                          {expense.date.split('-').reverse().join('/')}
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap">
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-700 dark:text-purple-300 font-medium text-[11px]">
-                            <CreditCard className="h-3 w-3" /> {expense.cardName}
-                          </span>
-                        </TableCell>
-                        <TableCell className="max-w-[280px]">
-                          <div className="font-medium truncate">{expense.description}</div>
-                          {expense.dueDate && expense.dueDate !== expense.date && (
-                            <div className="text-[10px] text-muted-foreground">
-                              Fatura Venc: {expense.dueDate.split('-').reverse().join('/')}
-                            </div>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {expense.isSplit ? (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-medium" title={`Valor total da compra: R$ ${expense.totalTxAmount.toFixed(2)}`}>
-                              <Split className="h-3 w-3" /> Rateio (Total R$ {expense.totalTxAmount.toFixed(2)})
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground text-[11px]">Integral</span>
-                          )}
-                        </TableCell>
-                        <TableCell className="text-right font-bold whitespace-nowrap">
-                          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(expense.amount)}
-                        </TableCell>
-                        <TableCell className="text-center">
-                          <button
-                            type="button"
-                            onClick={() => handleTogglePaid(expense)}
-                            disabled={isPending}
-                            className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
-                              expense.isPaid 
-                                ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/25' 
-                                : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 hover:bg-amber-500/25'
-                            }`}
-                          >
-                            {expense.isPaid ? (
-                              <>
-                                <Check className="h-3 w-3" /> Recebido
-                              </>
-                            ) : (
-                              <>
-                                <Clock className="h-3 w-3" /> Pendente
-                              </>
-                            )}
-                          </button>
-                        </TableCell>
+                    {/* Marcar Tudo Pago/Pendente */}
+                    {payer.totalPending > 0 ? (
+                      <Button 
+                        variant="secondary" 
+                        size="sm" 
+                        className="h-8 text-xs gap-1.5"
+                        onClick={() => handleMarkAllPayerPaid(payer, true)}
+                        disabled={isPending}
+                      >
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> Marcar Pago
+                      </Button>
+                    ) : (
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="h-8 text-xs text-muted-foreground"
+                        onClick={() => handleMarkAllPayerPaid(payer, false)}
+                        disabled={isPending}
+                      >
+                        Desfazer Pagamento
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Tabela de Despesas da Pessoa com Ordenação Interativa */}
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="text-xs hover:bg-transparent">
+                        <TableHead className="w-[110px] cursor-pointer select-none" onClick={() => handleTableSort('date')}>
+                          <div className="flex items-center">Data {getTableSortIcon('date')}</div>
+                        </TableHead>
+                        <TableHead className="cursor-pointer select-none" onClick={() => handleTableSort('cardName')}>
+                          <div className="flex items-center">Cartão {getTableSortIcon('cardName')}</div>
+                        </TableHead>
+                        <TableHead className="cursor-pointer select-none" onClick={() => handleTableSort('description')}>
+                          <div className="flex items-center">Descrição {getTableSortIcon('description')}</div>
+                        </TableHead>
+                        <TableHead>Tipo</TableHead>
+                        <TableHead className="text-right cursor-pointer select-none" onClick={() => handleTableSort('amount')}>
+                          <div className="flex items-center justify-end">Valor Devido {getTableSortIcon('amount')}</div>
+                        </TableHead>
+                        <TableHead className="text-center w-[120px] cursor-pointer select-none" onClick={() => handleTableSort('isPaid')}>
+                          <div className="flex items-center justify-center">Status {getTableSortIcon('isPaid')}</div>
+                        </TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-            </Card>
-          ))
+                    </TableHeader>
+                    <TableBody>
+                      {sortedExpenses.map(expense => (
+                        <TableRow key={expense.id} className="text-xs">
+                          <TableCell className="whitespace-nowrap font-medium">
+                            {expense.date.split('-').reverse().join('/')}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-700 dark:text-purple-300 font-medium text-[11px]">
+                              <CreditCard className="h-3 w-3" /> {expense.cardName}
+                            </span>
+                          </TableCell>
+                          <TableCell className="max-w-[280px]">
+                            <div className="font-medium truncate">{expense.description}</div>
+                            {expense.dueDate && expense.dueDate !== expense.date && (
+                              <div className="text-[10px] text-muted-foreground">
+                                Fatura Venc: {expense.dueDate.split('-').reverse().join('/')}
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            {expense.isSplit ? (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-medium" title={`Valor total da compra: R$ ${expense.totalTxAmount.toFixed(2)}`}>
+                                <Split className="h-3 w-3" /> Rateio (Total R$ {expense.totalTxAmount.toFixed(2)})
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground text-[11px]">Integral</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right font-bold whitespace-nowrap">
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(expense.amount)}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleTogglePaid(expense)}
+                              disabled={isPending}
+                              className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer ${
+                                expense.isPaid 
+                                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/25' 
+                                  : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 hover:bg-amber-500/25'
+                              }`}
+                            >
+                              {expense.isPaid ? (
+                                <>
+                                  <Check className="h-3 w-3" /> Recebido
+                                </>
+                              ) : (
+                                <>
+                                  <Clock className="h-3 w-3" /> Pendente
+                                </>
+                              )}
+                            </button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                    <TableFooter>
+                      <TableRow className="bg-muted/40 font-semibold text-xs">
+                        <TableCell colSpan={4} className="text-right">Totais do Terceiro:</TableCell>
+                        <TableCell className="text-right font-bold whitespace-nowrap">
+                          <div className="flex flex-col items-end">
+                            <span className="text-foreground">
+                              Total: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(payer.totalAmount)}
+                            </span>
+                            <span className={payer.totalPending > 0 ? "text-amber-600 dark:text-amber-400 text-[11px]" : "text-emerald-600 text-[11px]"}>
+                              Pendente: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(payer.totalPending)}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell />
+                      </TableRow>
+                    </TableFooter>
+                  </Table>
+                </div>
+              </Card>
+            )
+          })
         )}
       </div>
+
+      {/* Dialog de Visualização e Impressão do Comprovante */}
+      <Dialog open={!!previewPayer} onOpenChange={val => { if (!val) setPreviewPayer(null); }}>
+        <DialogContent className="w-[95vw] sm:max-w-4xl md:max-w-4xl lg:max-w-5xl max-h-[92vh] overflow-y-auto p-3 sm:p-6 bg-slate-100 dark:bg-slate-900">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between gap-2">
+              <span>Comprovante: {previewPayer?.payerName}</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          {previewPayer && (
+            <div className="w-full overflow-x-auto flex justify-center py-2">
+              <div 
+                id="receipt-preview-modal" 
+                style={{ width: '100%', minWidth: '720px', maxWidth: '850px', backgroundColor: '#ffffff', color: '#0f172a', fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}
+                className="bg-white text-slate-900 p-6 sm:p-8 rounded-lg border border-slate-200 shadow-sm"
+              >
+                {/* Cabeçalho */}
+                <div className="border-b border-slate-200 pb-5 mb-6 flex justify-between items-start gap-4">
+                  <div>
+                    <div className="text-xs uppercase tracking-widest text-slate-500 font-bold mb-1">
+                      Demonstrativo de Gastos e Reembolso
+                    </div>
+                    <h2 className="text-2xl font-black text-slate-900">
+                      {previewPayer.payerName}
+                    </h2>
+                    <div className="text-sm text-slate-600 mt-1 capitalize font-medium">
+                      Referência: {formatMonthName(selectedMonth)}
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="inline-block px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-2">
+                      {previewPayer.totalPending === 0 ? (
+                        <span className="bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full border border-emerald-300">
+                          ✓ Tudo Quitado
+                        </span>
+                      ) : (
+                        <span className="bg-amber-100 text-amber-800 px-3 py-1 rounded-full border border-amber-300">
+                          ● Pendente de Acerto
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-slate-400">
+                      {previewPayer.expenses.length} lançamento(s)
+                    </div>
+                  </div>
+                </div>
+
+                {/* Resumo */}
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+                    <div className="text-xs text-slate-500 font-semibold uppercase tracking-wider">
+                      Total de Gastos
+                    </div>
+                    <div className="text-2xl font-black text-slate-900 mt-1">
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(previewPayer.totalAmount)}
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">
+                      Soma de todas as compras no período
+                    </div>
+                  </div>
+
+                  <div className={`border rounded-lg p-4 ${previewPayer.totalPending > 0 ? 'bg-amber-50/60 border-amber-200' : 'bg-emerald-50/60 border-emerald-200'}`}>
+                    <div className={`text-xs font-semibold uppercase tracking-wider ${previewPayer.totalPending > 0 ? 'text-amber-800' : 'text-emerald-800'}`}>
+                      Total Pendente a Reembolsar
+                    </div>
+                    <div className={`text-2xl font-black mt-1 ${previewPayer.totalPending > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(previewPayer.totalPending)}
+                    </div>
+                    <div className="text-[11px] text-slate-500 mt-0.5">
+                      {previewPayer.totalPending > 0 ? 'Valor em aberto a ser transferido' : 'Nenhuma pendência financeira'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tabela */}
+                <div className="border border-slate-200 rounded-lg overflow-hidden mb-6">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-slate-100 text-slate-700 uppercase tracking-wider font-bold border-b border-slate-200">
+                      <tr>
+                        <th className="py-2.5 px-3 whitespace-nowrap w-[95px]">Data</th>
+                        <th className="py-2.5 px-3 whitespace-nowrap w-[150px]">Cartão</th>
+                        <th className="py-2.5 px-3 min-w-[180px]">Descrição</th>
+                        <th className="py-2.5 px-3 text-right whitespace-nowrap w-[110px]">Valor</th>
+                        <th className="py-2.5 px-3 text-center whitespace-nowrap w-[95px]">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {getSortedExpenses(previewPayer.expenses).map(item => (
+                        <tr key={item.id} className="hover:bg-slate-50">
+                          <td className="py-2.5 px-3 font-medium text-slate-700 whitespace-nowrap">
+                            {item.date.split('-').reverse().join('/')}
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap">
+                            {item.cardName}
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-800 font-medium break-words">
+                            {item.description}
+                            {item.isSplit && (
+                              <span className="ml-1.5 text-[10px] text-blue-600 font-semibold whitespace-nowrap">
+                                (Rateio de R$ {item.totalTxAmount.toFixed(2)})
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 text-right font-bold text-slate-900 whitespace-nowrap">
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.amount)}
+                          </td>
+                          <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                            {item.isPaid ? (
+                              <span className="text-emerald-700 font-bold text-[11px]">
+                                Quitado
+                              </span>
+                            ) : (
+                              <span className="text-amber-700 font-bold text-[11px]">
+                                Pendente
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-slate-100 border-t-2 border-slate-300 font-bold">
+                      <tr>
+                        <td colSpan={3} className="py-2.5 px-3 text-right text-slate-700 uppercase">
+                          Totais:
+                        </td>
+                        <td className="py-2.5 px-3 text-right text-slate-900 text-sm whitespace-nowrap">
+                          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(previewPayer.totalAmount)}
+                        </td>
+                        <td className="py-2.5 px-3 text-center text-xs whitespace-nowrap">
+                          {previewPayer.totalPending > 0 ? (
+                            <span className="text-amber-700 font-extrabold">
+                              Aberto: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(previewPayer.totalPending)}
+                            </span>
+                          ) : (
+                            <span className="text-emerald-700 font-extrabold">Quitado</span>
+                          )}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+
+                {/* Rodapé */}
+                <div className="border-t border-slate-200 pt-3 text-[11px] text-slate-400 flex justify-between items-center">
+                  <div>
+                    PWAFinance • Controle Financeiro e Reembolsos
+                  </div>
+                  <div>
+                    Emitido em {new Date().toLocaleDateString('pt-BR')} às {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 mt-2">
+            <Button 
+              variant="default"
+              className="gap-1.5"
+              onClick={() => previewPayer && handleDownloadPayerImage(previewPayer, 'receipt-preview-modal')}
+              disabled={generatingImagePayerId === previewPayer?.payerId}
+            >
+              {generatingImagePayerId === previewPayer?.payerId ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> Gerando Imagem...
+                </>
+              ) : (
+                <>
+                  <Camera className="h-4 w-4" /> Baixar Imagem (PNG Alta Resolução)
+                </>
+              )}
+            </Button>
+            {previewPayer && (
+              <Button 
+                variant="outline" 
+                className="gap-1.5 text-emerald-700 dark:text-emerald-300"
+                onClick={() => handleCopyWhatsApp(previewPayer)}
+              >
+                <Share2 className="h-4 w-4" /> Enviar WhatsApp
+              </Button>
+            )}
+            <Button variant="ghost" onClick={() => setPreviewPayer(null)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

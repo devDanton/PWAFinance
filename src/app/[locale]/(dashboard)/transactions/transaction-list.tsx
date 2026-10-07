@@ -48,6 +48,7 @@ export function TransactionList({
   // Filters
   const [searchTerm, setSearchTerm] = useState('')
   const [filterType, setFilterType] = useState<string>('all')
+  const [filterPaidStatus, setFilterPaidStatus] = useState<'all' | 'paid' | 'pending'>('all')
   const [minAmount, setMinAmount] = useState<string>('')
   const [maxAmount, setMaxAmount] = useState<string>('')
   const [startDate, setStartDate] = useState<string>('')
@@ -87,6 +88,8 @@ export function TransactionList({
     }
 
     if (filterType !== 'all' && tx.type !== filterType) return false
+    if (filterPaidStatus === 'paid' && !tx.is_paid) return false
+    if (filterPaidStatus === 'pending' && tx.is_paid) return false
     if (filterPayer !== 'all' && tx.payer_id !== filterPayer) return false
     if (filterCategory !== 'all' && tx.category_id !== filterCategory) return false
     
@@ -106,17 +109,52 @@ export function TransactionList({
 
   // Apply sorting (server already sorted initially, but client needs to handle changes)
   filteredTransactions.sort((a, b) => {
+    // 1. Tratamento para ordenação por data (compra ou vencimento) como Date real
+    if (sortField === 'date' || sortField === 'due_date') {
+      const getTimestamp = (tx: Record<string, unknown>, field: string) => {
+        const val = (field === 'due_date' ? (tx.due_date || tx.date) : tx.date) as string | undefined
+        if (!val) return 0
+        const dateObj = new Date(val.includes('T') ? val : val + 'T12:00:00Z')
+        const t = dateObj.getTime()
+        return isNaN(t) ? 0 : t
+      }
+
+      const timeA = getTimestamp(a, sortField)
+      const timeB = getTimestamp(b, sortField)
+      return sortDir === 'asc' ? timeA - timeB : timeB - timeA
+    }
+
+    // 2. Tratamento para valor numérico (amount)
+    if (sortField === 'amount') {
+      const numA = Number(a.amount) || 0
+      const numB = Number(b.amount) || 0
+      return sortDir === 'asc' ? numA - numB : numB - numA
+    }
+
+    // 3. Tratamento para status de pagamento (is_paid)
+    if (sortField === 'is_paid') {
+      const boolA = a.is_paid ? 1 : 0
+      const boolB = b.is_paid ? 1 : 0
+      return sortDir === 'asc' ? boolA - boolB : boolB - boolA
+    }
+
+    // 4. Tratamento para relacionamentos e strings
     let valA = a[sortField]
     let valB = b[sortField]
 
     if (sortField === 'categories') {
       valA = a.categories?.name || ''
       valB = b.categories?.name || ''
+    } else if (sortField === 'description') {
+      valA = a.description || ''
+      valB = b.description || ''
     }
 
-    if (valA < valB) return sortDir === 'asc' ? -1 : 1
-    if (valA > valB) return sortDir === 'asc' ? 1 : -1
-    return 0
+    const strA = String(valA || '').toLowerCase()
+    const strB = String(valB || '').toLowerCase()
+    return sortDir === 'asc' 
+      ? strA.localeCompare(strB, 'pt-BR') 
+      : strB.localeCompare(strA, 'pt-BR')
   })
 
   const filteredCards = cards.filter(c => c.workspace_id === selectedWorkspace)
@@ -244,16 +282,26 @@ export function TransactionList({
       </div>
 
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex flex-1 items-center space-x-2">
+        <div className="flex flex-1 flex-wrap items-center gap-2">
           <Input 
             placeholder="Buscar transações..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="max-w-sm"
+            className="max-w-xs"
           />
+          <Select value={filterPaidStatus} onValueChange={(val: 'all' | 'paid' | 'pending') => setFilterPaidStatus(val)}>
+            <SelectTrigger className="w-[145px] text-xs h-9">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos os status</SelectItem>
+              <SelectItem value="paid">Apenas Pagas</SelectItem>
+              <SelectItem value="pending">Apenas Pendentes</SelectItem>
+            </SelectContent>
+          </Select>
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline" size="icon">
+              <Button variant="outline" size="icon" className="h-9 w-9">
                 <Filter className="h-4 w-4" />
               </Button>
             </PopoverTrigger>
@@ -271,6 +319,16 @@ export function TransactionList({
                       <SelectItem value="all">Todos</SelectItem>
                       <SelectItem value="income">Receitas</SelectItem>
                       <SelectItem value="expense">Despesas</SelectItem>
+                    </SelectContent>
+                  </Select>
+
+                  <Label>Status do Pagamento</Label>
+                  <Select value={filterPaidStatus} onValueChange={(val: 'all' | 'paid' | 'pending') => setFilterPaidStatus(val)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Todos os status</SelectItem>
+                      <SelectItem value="paid">Apenas Pagas</SelectItem>
+                      <SelectItem value="pending">Apenas Pendentes</SelectItem>
                     </SelectContent>
                   </Select>
 
@@ -369,7 +427,7 @@ export function TransactionList({
                   </div>
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => {
-                  setFilterType('all'); setFilterCategory('all'); setFilterPayer('all');
+                  setFilterType('all'); setFilterPaidStatus('all'); setFilterCategory('all'); setFilterPayer('all');
                   setMinAmount(''); setMaxAmount(''); 
                   setStartDate(''); setEndDate('');
                   setDueStartDate(''); setDueEndDate('');
@@ -584,7 +642,9 @@ export function TransactionList({
                 <div className="flex items-center">Categoria {getSortIcon('categories')}</div>
               </TableHead>
               <TableHead>Workspace / Cartão</TableHead>
-              <TableHead>Status</TableHead>
+              <TableHead className="cursor-pointer select-none" onClick={() => handleSort('is_paid')}>
+                <div className="flex items-center">Status {getSortIcon('is_paid')}</div>
+              </TableHead>
               <TableHead className="text-right cursor-pointer select-none" onClick={() => handleSort('amount')}>
                 <div className="flex items-center justify-end">Valor {getSortIcon('amount')}</div>
               </TableHead>
