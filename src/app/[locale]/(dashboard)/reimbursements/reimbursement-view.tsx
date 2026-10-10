@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, Fragment } from 'react'
 import { 
   HandCoins, 
   Calendar, 
@@ -30,6 +30,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Checkbox } from '@/components/ui/checkbox'
 import { toggleSplitPaid, markAllItemsPaid } from '@/app/actions/splits'
 import { toggleTransactionPaid } from '@/app/actions/transactions'
 import { useRouter } from 'next/navigation'
@@ -114,7 +115,7 @@ export function ReimbursementView({
   const [payerSort, setPayerSort] = useState<'pending_desc' | 'total_desc' | 'name_asc' | 'name_desc'>('pending_desc')
 
   // Ordenação das tabelas de gastos de cada terceiro
-  const [tableSortField, setTableSortField] = useState<'date' | 'cardName' | 'description' | 'amount' | 'isPaid'>('date')
+  const [tableSortField, setTableSortField] = useState<'dueDate' | 'date' | 'cardName' | 'description' | 'amount' | 'isPaid' | 'payerName'>('dueDate')
   const [tableSortDir, setTableSortDir] = useState<'asc' | 'desc'>('desc')
 
   // Estado de loading para geração de imagem em alta resolução
@@ -125,6 +126,11 @@ export function ReimbursementView({
   const [excludedTitulars, setExcludedTitulars] = useState<string[]>(['danton', 'lauren'])
   const [newTitularInput, setNewTitularInput] = useState('')
   const [copiedPayerId, setCopiedPayerId] = useState<string | null>(null)
+
+  // Multi-payer export states
+  const [selectedPayers, setSelectedPayers] = useState<string[]>([])
+  const [previewMultiPayers, setPreviewMultiPayers] = useState<PayerSummary[] | null>(null)
+  const [copiedMulti, setCopiedMulti] = useState(false)
 
   // Navegação de mês
   function changeMonth(delta: number) {
@@ -157,12 +163,12 @@ export function ReimbursementView({
     setExcludedTitulars(excludedTitulars.filter(n => n !== name))
   }
 
-  function handleTableSort(field: 'date' | 'cardName' | 'description' | 'amount' | 'isPaid') {
+  function handleTableSort(field: 'dueDate' | 'date' | 'cardName' | 'description' | 'amount' | 'isPaid' | 'payerName') {
     if (tableSortField === field) {
       setTableSortDir(prev => prev === 'asc' ? 'desc' : 'asc')
     } else {
       setTableSortField(field)
-      setTableSortDir(field === 'date' || field === 'amount' ? 'desc' : 'asc')
+      setTableSortDir(field === 'dueDate' || field === 'date' || field === 'amount' ? 'desc' : 'asc')
     }
   }
 
@@ -173,30 +179,50 @@ export function ReimbursementView({
       : <ArrowDown className="ml-1 h-3 w-3 text-primary inline" />
   }
 
-  function getSortedExpenses(expenses: PayerExpenseDetail[]) {
+  function getSortedExpenses<T extends PayerExpenseDetail & { payerName?: string }>(expenses: T[]): T[] {
     return [...expenses].sort((a, b) => {
+      if (tableSortField === 'dueDate') {
+        const timeA = new Date((a.dueDate || a.date) + 'T12:00:00Z').getTime() || 0
+        const timeB = new Date((b.dueDate || b.date) + 'T12:00:00Z').getTime() || 0
+        if (timeA !== timeB) return tableSortDir === 'asc' ? timeA - timeB : timeB - timeA
+        return b.amount - a.amount
+      }
       if (tableSortField === 'date') {
         const timeA = new Date(a.date + 'T12:00:00Z').getTime() || 0
         const timeB = new Date(b.date + 'T12:00:00Z').getTime() || 0
-        return tableSortDir === 'asc' ? timeA - timeB : timeB - timeA
+        if (timeA !== timeB) return tableSortDir === 'asc' ? timeA - timeB : timeB - timeA
+        return b.amount - a.amount
       }
       if (tableSortField === 'amount') {
-        return tableSortDir === 'asc' ? a.amount - b.amount : b.amount - a.amount
+        if (a.amount !== b.amount) {
+          return tableSortDir === 'asc' ? a.amount - b.amount : b.amount - a.amount
+        }
+        return a.cardName.localeCompare(b.cardName, 'pt-BR')
       }
       if (tableSortField === 'isPaid') {
         const pA = a.isPaid ? 1 : 0
         const pB = b.isPaid ? 1 : 0
-        return tableSortDir === 'asc' ? pA - pB : pB - pA
+        if (pA !== pB) return tableSortDir === 'asc' ? pA - pB : pB - pA
+        return a.cardName.localeCompare(b.cardName, 'pt-BR')
       }
       if (tableSortField === 'cardName') {
-        return tableSortDir === 'asc' 
-          ? a.cardName.localeCompare(b.cardName, 'pt-BR') 
-          : b.cardName.localeCompare(a.cardName, 'pt-BR')
+        const cmp = a.cardName.localeCompare(b.cardName, 'pt-BR')
+        if (cmp !== 0) return tableSortDir === 'asc' ? cmp : -cmp
+        const timeA = new Date((a.dueDate || a.date) + 'T12:00:00Z').getTime() || 0
+        const timeB = new Date((b.dueDate || b.date) + 'T12:00:00Z').getTime() || 0
+        return timeB - timeA
       }
       if (tableSortField === 'description') {
-        return tableSortDir === 'asc' 
-          ? a.description.localeCompare(b.description, 'pt-BR') 
-          : b.description.localeCompare(a.description, 'pt-BR')
+        const cmp = a.description.localeCompare(b.description, 'pt-BR')
+        if (cmp !== 0) return tableSortDir === 'asc' ? cmp : -cmp
+        return a.amount - b.amount
+      }
+      if (tableSortField === 'payerName') {
+        const pA = a.payerName || ''
+        const pB = b.payerName || ''
+        const cmp = pA.localeCompare(pB, 'pt-BR')
+        if (cmp !== 0) return tableSortDir === 'asc' ? cmp : -cmp
+        return a.cardName.localeCompare(b.cardName, 'pt-BR')
       }
       return 0
     })
@@ -360,10 +386,11 @@ export function ReimbursementView({
     const monthFormatted = formatMonthName(selectedMonth)
     const pendingExpenses = payer.expenses.filter(e => !e.isPaid)
     const listToPrint = pendingExpenses.length > 0 ? pendingExpenses : payer.expenses
+    const sortedExpenses = getSortedExpenses(listToPrint)
 
     // Agrupa despesas por cartão
     const byCard: Record<string, PayerExpenseDetail[]> = {}
-    listToPrint.forEach(e => {
+    sortedExpenses.forEach(e => {
       if (!byCard[e.cardName]) byCard[e.cardName] = []
       byCard[e.cardName].push(e)
     })
@@ -375,10 +402,12 @@ export function ReimbursementView({
       const formattedCardTotal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cardTotal)
       message += `💳 *${card}* (Total: *${formattedCardTotal}*):\n`
       items.forEach(it => {
-        const d = it.date.split('-').reverse().slice(0, 2).join('/')
+        const dVenc = it.dueDate ? it.dueDate.split('-').reverse().slice(0, 2).join('/') : ''
+        const dCompra = it.date ? it.date.split('-').reverse().slice(0, 2).join('/') : ''
+        const dateStr = dVenc ? `Venc: ${dVenc} (Compra: ${dCompra})` : `Compra: ${dCompra}`
         const formattedAmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(it.amount)
         const rateioNote = it.isSplit ? ` _(Rateio de R$ ${it.totalTxAmount.toFixed(2)})_` : ''
-        message += `• ${d} - ${it.description}: *${formattedAmt}*${rateioNote}\n`
+        message += `• ${dateStr} - ${it.description}: *${formattedAmt}*${rateioNote}\n`
       })
       message += `\n`
     })
@@ -394,10 +423,11 @@ export function ReimbursementView({
   }
 
   function handleExportPayerCsv(payer: PayerSummary) {
-    const headers = ['Data', 'Vencimento', 'Cartao', 'Descricao', 'Valor_Devido', 'Valor_Total_Compra', 'Rateado', 'Status']
-    const rows = payer.expenses.map(e => [
-      e.date,
+    const sorted = getSortedExpenses(payer.expenses)
+    const headers = ['Vencimento', 'Compra', 'Cartao', 'Descricao', 'Valor_Devido', 'Valor_Total_Compra', 'Rateado', 'Status']
+    const rows = sorted.map(e => [
       e.dueDate,
+      e.date,
       `"${e.cardName}"`,
       `"${e.description.replace(/"/g, '""')}"`,
       e.amount.toFixed(2),
@@ -417,6 +447,92 @@ export function ReimbursementView({
     document.body.removeChild(link)
   }
 
+  // Ações Multi-Pagadores
+  function togglePayerSelection(payerId: string) {
+    setSelectedPayers(prev => 
+      prev.includes(payerId) ? prev.filter(id => id !== payerId) : [...prev, payerId]
+    )
+  }
+
+  function handleCopyMultiWhatsApp(payersToExport: PayerSummary[]) {
+    const monthFormatted = formatMonthName(selectedMonth)
+    let totalPendingAll = 0
+
+    let message = `🧾 *Acerto de Contas Centralizado* - ${monthFormatted}\n\n`
+
+    payersToExport.forEach(p => {
+      const pending = p.expenses.filter(e => !e.isPaid)
+      const listToPrint = pending.length > 0 ? pending : p.expenses
+      const pTotal = pending.length > 0 ? p.totalPending : p.totalAmount
+      totalPendingAll += pTotal
+
+      const sortedExpenses = getSortedExpenses(listToPrint)
+      const formattedPTotal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pTotal)
+
+      message += `👤 *${p.payerName}* (Subtotal: *${formattedPTotal}*):\n`
+
+      sortedExpenses.forEach(it => {
+        const dVenc = it.dueDate ? it.dueDate.split('-').reverse().slice(0, 2).join('/') : ''
+        const dCompra = it.date ? it.date.split('-').reverse().slice(0, 2).join('/') : ''
+        const dateStr = dVenc ? `Venc: ${dVenc} (Compra: ${dCompra})` : `Compra: ${dCompra}`
+        const formattedAmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(it.amount)
+        const rateioNote = it.isSplit ? ` _(Rateio de R$ ${it.totalTxAmount.toFixed(2)})_` : ''
+        message += `• ${dateStr} - ${it.description} (*${formattedAmt}*)${rateioNote} - Cartão: ${it.cardName}\n`
+      })
+
+      message += `\n`
+    })
+
+    const formattedGrandTotal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(totalPendingAll)
+    message += `💰 *Total Geral (Pendente): ${formattedGrandTotal}*\n`
+
+    navigator.clipboard.writeText(message)
+    setCopiedMulti(true)
+    setTimeout(() => setCopiedMulti(false), 3000)
+  }
+
+  function handleOpenMultiReceipt(payers: PayerSummary[]) {
+    setPreviewMultiPayers(payers)
+  }
+
+  async function handleDownloadMultiImage(elementId: string) {
+    try {
+      setGeneratingImagePayerId('multi')
+      const node = document.getElementById(elementId)
+      if (!node) return
+      
+      const width = Math.max(node.scrollWidth, node.offsetWidth, 920)
+      const height = Math.max(node.scrollHeight, node.offsetHeight, 400)
+
+      const dataUrl = await toPng(node, {
+        pixelRatio: 2.5,
+        backgroundColor: '#ffffff',
+        skipFonts: true,
+        cacheBust: true,
+        canvasWidth: width,
+        canvasHeight: height,
+        width: width,
+        height: height,
+        style: {
+          position: 'static', top: '0px', left: '0px', right: 'auto', bottom: 'auto',
+          margin: '0px', zIndex: '1', visibility: 'visible', display: 'block', opacity: '1',
+          transform: 'none', width: `${width}px`, minWidth: `${width}px`,
+        }
+      })
+
+      const link = document.createElement('a')
+      link.download = `comprovante_centralizado_${selectedMonth}.png`
+      link.href = dataUrl
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    } catch (error) {
+      console.error('Falha ao gerar imagem:', error)
+    } finally {
+      setGeneratingImagePayerId(null)
+    }
+  }
+
   async function handleDownloadPayerImage(payer: PayerSummary, customNodeId?: string) {
     try {
       setGeneratingImagePayerId(payer.payerId)
@@ -428,7 +544,7 @@ export function ReimbursementView({
       }
 
       // Garante captura integral mesmo se houver scroll lateral interno
-      const width = Math.max(node.scrollWidth, node.offsetWidth, 750)
+      const width = Math.max(node.scrollWidth, node.offsetWidth, 820)
       const height = Math.max(node.scrollHeight, node.offsetHeight, 400)
 
       // Converte para PNG em alta resolução (escala 2.5x)
@@ -652,7 +768,23 @@ export function ReimbursementView({
       {/* 4. Lista de Pessoas / Extratos */}
       <div className="space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <h2 className="text-lg font-bold">Relação por Terceiro ({payerList.length})</h2>
+          <div className="flex items-center gap-3">
+            <h2 className="text-lg font-bold">Relação por Terceiro ({payerList.length})</h2>
+            {selectedPayers.length > 1 && (
+              <Button 
+                size="sm" 
+                variant="default"
+                className="h-8 text-xs gap-1.5 ml-2"
+                onClick={() => {
+                  const payersToExport = payerList.filter(p => selectedPayers.includes(p.payerId))
+                  handleOpenMultiReceipt(payersToExport)
+                }}
+                disabled={generatingImagePayerId === 'multi'}
+              >
+                <Share2 className="h-3.5 w-3.5" /> Exportar Selecionados ({selectedPayers.length})
+              </Button>
+            )}
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <Select value={payerSort} onValueChange={(v: 'pending_desc' | 'total_desc' | 'name_asc' | 'name_desc') => setPayerSort(v)}>
               <SelectTrigger className="w-40 h-8 text-xs">
@@ -695,6 +827,10 @@ export function ReimbursementView({
                 {/* Cabeçalho do Pagador */}
                 <div className="p-4 bg-muted/30 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-3">
+                    <Checkbox 
+                      checked={selectedPayers.includes(payer.payerId)} 
+                      onCheckedChange={() => togglePayerSelection(payer.payerId)}
+                    />
                     <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm uppercase">
                       {payer.payerName.slice(0, 2)}
                     </div>
@@ -825,8 +961,11 @@ export function ReimbursementView({
                   <Table>
                     <TableHeader>
                       <TableRow className="text-xs hover:bg-transparent">
-                        <TableHead className="w-[110px] cursor-pointer select-none" onClick={() => handleTableSort('date')}>
-                          <div className="flex items-center">Data {getTableSortIcon('date')}</div>
+                        <TableHead className="w-[110px] cursor-pointer select-none" onClick={() => handleTableSort('dueDate')}>
+                          <div className="flex items-center">Vencimento {getTableSortIcon('dueDate')}</div>
+                        </TableHead>
+                        <TableHead className="w-[105px] cursor-pointer select-none" onClick={() => handleTableSort('date')}>
+                          <div className="flex items-center">Compra {getTableSortIcon('date')}</div>
                         </TableHead>
                         <TableHead className="cursor-pointer select-none" onClick={() => handleTableSort('cardName')}>
                           <div className="flex items-center">Cartão {getTableSortIcon('cardName')}</div>
@@ -846,7 +985,10 @@ export function ReimbursementView({
                     <TableBody>
                       {sortedExpenses.map(expense => (
                         <TableRow key={expense.id} className="text-xs">
-                          <TableCell className="whitespace-nowrap font-medium">
+                          <TableCell className="whitespace-nowrap font-semibold text-foreground">
+                            {expense.dueDate ? expense.dueDate.split('-').reverse().join('/') : expense.date.split('-').reverse().join('/')}
+                          </TableCell>
+                          <TableCell className="whitespace-nowrap text-muted-foreground">
                             {expense.date.split('-').reverse().join('/')}
                           </TableCell>
                           <TableCell className="whitespace-nowrap">
@@ -856,16 +998,11 @@ export function ReimbursementView({
                           </TableCell>
                           <TableCell className="max-w-[280px]">
                             <div className="font-medium truncate">{expense.description}</div>
-                            {expense.dueDate && expense.dueDate !== expense.date && (
-                              <div className="text-[10px] text-muted-foreground">
-                                Fatura Venc: {expense.dueDate.split('-').reverse().join('/')}
-                              </div>
-                            )}
                           </TableCell>
                           <TableCell>
                             {expense.isSplit ? (
                               <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 dark:text-blue-400 text-[10px] font-medium" title={`Valor total da compra: R$ ${expense.totalTxAmount.toFixed(2)}`}>
-                                <Split className="h-3 w-3" /> Rateio (Total R$ {expense.totalTxAmount.toFixed(2)})
+                                <Split className="h-3 w-3" /> Rateio (Total R$ ${expense.totalTxAmount.toFixed(2)})
                               </span>
                             ) : (
                               <span className="text-muted-foreground text-[11px]">Integral</span>
@@ -901,7 +1038,7 @@ export function ReimbursementView({
                     </TableBody>
                     <TableFooter>
                       <TableRow className="bg-muted/40 font-semibold text-xs">
-                        <TableCell colSpan={4} className="text-right">Totais do Terceiro:</TableCell>
+                        <TableCell colSpan={5} className="text-right">Totais do Terceiro:</TableCell>
                         <TableCell className="text-right font-bold whitespace-nowrap">
                           <div className="flex flex-col items-end">
                             <span className="text-foreground">
@@ -936,7 +1073,7 @@ export function ReimbursementView({
             <div className="w-full overflow-x-auto flex justify-center py-2">
               <div 
                 id="receipt-preview-modal" 
-                style={{ width: '100%', minWidth: '720px', maxWidth: '850px', backgroundColor: '#ffffff', color: '#0f172a', fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}
+                style={{ width: '100%', minWidth: '820px', maxWidth: '920px', backgroundColor: '#ffffff', color: '#0f172a', fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}
                 className="bg-white text-slate-900 p-6 sm:p-8 rounded-lg border border-slate-200 shadow-sm"
               >
                 {/* Cabeçalho */}
@@ -1002,20 +1139,36 @@ export function ReimbursementView({
                   <table className="w-full text-xs text-left">
                     <thead className="bg-slate-100 text-slate-700 uppercase tracking-wider font-bold border-b border-slate-200">
                       <tr>
-                        <th className="py-2.5 px-3 whitespace-nowrap w-[95px]">Data</th>
-                        <th className="py-2.5 px-3 whitespace-nowrap w-[150px]">Cartão</th>
-                        <th className="py-2.5 px-3 min-w-[180px]">Descrição</th>
-                        <th className="py-2.5 px-3 text-right whitespace-nowrap w-[110px]">Valor</th>
-                        <th className="py-2.5 px-3 text-center whitespace-nowrap w-[95px]">Status</th>
+                        <th className="py-2.5 px-3 whitespace-nowrap w-[95px] cursor-pointer select-none" onClick={() => handleTableSort('dueDate')}>
+                          Vencimento {tableSortField === 'dueDate' && (tableSortDir === 'asc' ? '↑' : '↓')}
+                        </th>
+                        <th className="py-2.5 px-3 whitespace-nowrap w-[95px] cursor-pointer select-none" onClick={() => handleTableSort('date')}>
+                          Compra {tableSortField === 'date' && (tableSortDir === 'asc' ? '↑' : '↓')}
+                        </th>
+                        <th className="py-2.5 px-3 whitespace-nowrap w-[130px] cursor-pointer select-none" onClick={() => handleTableSort('cardName')}>
+                          Cartão {tableSortField === 'cardName' && (tableSortDir === 'asc' ? '↑' : '↓')}
+                        </th>
+                        <th className="py-2.5 px-3 min-w-[170px] cursor-pointer select-none" onClick={() => handleTableSort('description')}>
+                          Descrição {tableSortField === 'description' && (tableSortDir === 'asc' ? '↑' : '↓')}
+                        </th>
+                        <th className="py-2.5 px-3 text-right whitespace-nowrap w-[110px] cursor-pointer select-none" onClick={() => handleTableSort('amount')}>
+                          Valor {tableSortField === 'amount' && (tableSortDir === 'asc' ? '↑' : '↓')}
+                        </th>
+                        <th className="py-2.5 px-3 text-center whitespace-nowrap w-[90px] cursor-pointer select-none" onClick={() => handleTableSort('isPaid')}>
+                          Status {tableSortField === 'isPaid' && (tableSortDir === 'asc' ? '↑' : '↓')}
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200">
                       {getSortedExpenses(previewPayer.expenses).map(item => (
                         <tr key={item.id} className="hover:bg-slate-50">
-                          <td className="py-2.5 px-3 font-medium text-slate-700 whitespace-nowrap">
-                            {item.date.split('-').reverse().join('/')}
+                          <td className="py-2.5 px-3 font-semibold text-slate-800 whitespace-nowrap">
+                            {item.dueDate ? item.dueDate.split('-').reverse().join('/') : item.date.split('-').reverse().join('/')}
                           </td>
                           <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap">
+                            {item.date.split('-').reverse().join('/')}
+                          </td>
+                          <td className="py-2.5 px-3 text-slate-700 whitespace-nowrap font-medium">
                             {item.cardName}
                           </td>
                           <td className="py-2.5 px-3 text-slate-800 font-medium break-words">
@@ -1045,7 +1198,7 @@ export function ReimbursementView({
                     </tbody>
                     <tfoot className="bg-slate-100 border-t-2 border-slate-300 font-bold">
                       <tr>
-                        <td colSpan={3} className="py-2.5 px-3 text-right text-slate-700 uppercase">
+                        <td colSpan={4} className="py-2.5 px-3 text-right text-slate-700 uppercase">
                           Totais:
                         </td>
                         <td className="py-2.5 px-3 text-right text-slate-900 text-sm whitespace-nowrap">
@@ -1105,6 +1258,201 @@ export function ReimbursementView({
               </Button>
             )}
             <Button variant="ghost" onClick={() => setPreviewPayer(null)}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Visualização Multi-Pagadores (Centralizado) */}
+      <Dialog open={!!previewMultiPayers} onOpenChange={val => { if (!val) setPreviewMultiPayers(null); }}>
+        <DialogContent className="w-[95vw] sm:max-w-4xl md:max-w-5xl lg:max-w-6xl max-h-[92vh] overflow-y-auto p-3 sm:p-6 bg-slate-100 dark:bg-slate-900">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between gap-2">
+              <span>Comprovante Centralizado</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          {previewMultiPayers && (
+            <div className="w-full overflow-x-auto flex justify-center py-2">
+              <div 
+                id="multi-receipt-preview-modal" 
+                style={{ width: '100%', minWidth: '920px', maxWidth: '1050px', backgroundColor: '#ffffff', color: '#0f172a', fontFamily: 'Inter, system-ui, -apple-system, sans-serif' }}
+                className="bg-white text-slate-900 p-6 sm:p-8 rounded-lg border border-slate-200 shadow-sm"
+              >
+                {/* Cabeçalho */}
+                <div className="border-b border-slate-200 pb-5 mb-6 flex justify-between items-start gap-4">
+                  <div>
+                    <div className="text-xs uppercase tracking-widest text-slate-500 font-bold mb-1">
+                      Demonstrativo de Gastos Centralizado
+                    </div>
+                    <h2 className="text-2xl font-black text-slate-900">
+                      Acerto de Contas Múltiplo
+                    </h2>
+                    <div className="text-sm text-slate-600 mt-1 capitalize font-medium">
+                      Referência: {formatMonthName(selectedMonth)}
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="text-xs text-slate-400 mt-2">
+                      {previewMultiPayers.length} pagadores selecionados
+                    </div>
+                  </div>
+                </div>
+
+                {/* Resumo por Pagador (Centralizado) */}
+                <div className="mb-6 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {previewMultiPayers.map(p => {
+                    const pending = p.expenses.filter(e => !e.isPaid)
+                    const pTotalPending = pending.length > 0 ? p.totalPending : p.totalAmount
+                    const isAllPaid = pending.length === 0
+                    return (
+                      <div key={p.payerId} className={`border rounded-lg p-3 ${isAllPaid ? 'bg-emerald-50/60 border-emerald-200' : 'bg-amber-50/60 border-amber-200'}`}>
+                        <div className="text-xs font-semibold uppercase text-slate-700 truncate">{p.payerName}</div>
+                        <div className={`text-lg font-black mt-1 ${isAllPaid ? 'text-emerald-700' : 'text-amber-700'}`}>
+                          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pTotalPending)}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {/* Tabela */}
+                <div className="border border-slate-200 rounded-lg overflow-hidden mb-6">
+                  <table className="w-full text-xs text-left">
+                    <thead className="bg-slate-100 text-slate-700 uppercase tracking-wider font-bold border-b border-slate-200">
+                      <tr>
+                        <th className="py-2.5 px-3 whitespace-nowrap w-[95px] cursor-pointer select-none" onClick={() => handleTableSort('dueDate')}>
+                          Vencimento {tableSortField === 'dueDate' && (tableSortDir === 'asc' ? '↑' : '↓')}
+                        </th>
+                        <th className="py-2.5 px-3 whitespace-nowrap w-[95px] cursor-pointer select-none" onClick={() => handleTableSort('date')}>
+                          Compra {tableSortField === 'date' && (tableSortDir === 'asc' ? '↑' : '↓')}
+                        </th>
+                        <th className="py-2.5 px-3 whitespace-nowrap w-[130px] cursor-pointer select-none" onClick={() => handleTableSort('cardName')}>
+                          Cartão {tableSortField === 'cardName' && (tableSortDir === 'asc' ? '↑' : '↓')}
+                        </th>
+                        <th className="py-2.5 px-3 min-w-[150px] cursor-pointer select-none" onClick={() => handleTableSort('description')}>
+                          Descrição {tableSortField === 'description' && (tableSortDir === 'asc' ? '↑' : '↓')}
+                        </th>
+                        <th className="py-2.5 px-3 whitespace-nowrap w-[120px] cursor-pointer select-none" onClick={() => handleTableSort('payerName')}>
+                          Pagador {tableSortField === 'payerName' && (tableSortDir === 'asc' ? '↑' : '↓')}
+                        </th>
+                        <th className="py-2.5 px-3 text-right whitespace-nowrap w-[110px] cursor-pointer select-none" onClick={() => handleTableSort('amount')}>
+                          Valor {tableSortField === 'amount' && (tableSortDir === 'asc' ? '↑' : '↓')}
+                        </th>
+                        <th className="py-2.5 px-3 text-center whitespace-nowrap w-[90px] cursor-pointer select-none" onClick={() => handleTableSort('isPaid')}>
+                          Status {tableSortField === 'isPaid' && (tableSortDir === 'asc' ? '↑' : '↓')}
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-200">
+                      {previewMultiPayers.map(p => {
+                        const list = p.expenses.filter(e => !e.isPaid).length > 0 ? p.expenses.filter(e => !e.isPaid) : p.expenses
+                        const sorted = getSortedExpenses(list)
+                        const pTotal = list.reduce((sum, e) => sum + e.amount, 0)
+
+                        return (
+                          <Fragment key={p.payerId}>
+                            {/* Linha separadora do Pagador */}
+                            <tr className="bg-slate-100 font-bold border-t-2 border-slate-300">
+                              <td colSpan={7} className="py-2 px-3 text-slate-800">
+                                <div className="flex items-center justify-between">
+                                  <span className="uppercase tracking-wide text-[11px] text-slate-700 font-bold">
+                                    👤 Pagador: <strong className="text-slate-900 text-xs font-black">{p.payerName}</strong> ({list.length} {list.length === 1 ? 'item' : 'itens'})
+                                  </span>
+                                  <span className="text-xs text-slate-700 font-medium">
+                                    Subtotal: <strong className="text-slate-900 font-bold">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(pTotal)}</strong>
+                                  </span>
+                                </div>
+                              </td>
+                            </tr>
+                            {sorted.map(item => (
+                              <tr key={`${p.payerName}-${item.id}`} className="hover:bg-slate-50 bg-white">
+                                <td className="py-2.5 px-3 font-semibold text-slate-800 whitespace-nowrap">
+                                  {item.dueDate ? item.dueDate.split('-').reverse().join('/') : item.date.split('-').reverse().join('/')}
+                                </td>
+                                <td className="py-2.5 px-3 text-slate-600 whitespace-nowrap">
+                                  {item.date.split('-').reverse().join('/')}
+                                </td>
+                                <td className="py-2.5 px-3 text-slate-700 whitespace-nowrap font-medium">
+                                  {item.cardName}
+                                </td>
+                                <td className="py-2.5 px-3 text-slate-800 font-medium break-words">
+                                  {item.description}
+                                  {item.isSplit && (
+                                    <span className="ml-1.5 text-[10px] text-blue-600 font-semibold whitespace-nowrap">
+                                      (Rateio de R$ {item.totalTxAmount.toFixed(2)})
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-2.5 px-3 font-bold text-slate-800 whitespace-nowrap">
+                                  {p.payerName}
+                                </td>
+                                <td className="py-2.5 px-3 text-right font-bold text-slate-900 whitespace-nowrap">
+                                  {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.amount)}
+                                </td>
+                                <td className="py-2.5 px-3 text-center whitespace-nowrap">
+                                  {item.isPaid ? (
+                                    <span className="text-emerald-700 font-bold text-[11px]">Quitado</span>
+                                  ) : (
+                                    <span className="text-amber-700 font-bold text-[11px]">Pendente</span>
+                                  )}
+                                </td>
+                              </tr>
+                            ))}
+                          </Fragment>
+                        )
+                      })}
+                    </tbody>
+                    <tfoot className="bg-slate-100 border-t-2 border-slate-300 font-bold">
+                      <tr>
+                        <td colSpan={5} className="py-2.5 px-3 text-right text-slate-700 uppercase">
+                          Total Geral (Pendente):
+                        </td>
+                        <td className="py-2.5 px-3 text-right text-slate-900 text-sm whitespace-nowrap">
+                          {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+                            previewMultiPayers.reduce((sum, p) => sum + (p.expenses.filter(e => !e.isPaid).length > 0 ? p.totalPending : p.totalAmount), 0)
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3"></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+
+                {/* Rodapé */}
+                <div className="border-t border-slate-200 pt-3 text-[11px] text-slate-400 flex justify-between items-center">
+                  <div>PWAFinance • Controle Financeiro e Reembolsos</div>
+                  <div>Emitido em {new Date().toLocaleDateString('pt-BR')} às {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="flex flex-col sm:flex-row gap-2 mt-2">
+            <Button 
+              variant="default"
+              className="gap-1.5"
+              onClick={() => previewMultiPayers && handleDownloadMultiImage('multi-receipt-preview-modal')}
+              disabled={generatingImagePayerId === 'multi'}
+            >
+              {generatingImagePayerId === 'multi' ? (
+                <><Loader2 className="h-4 w-4 animate-spin" /> Gerando Imagem...</>
+              ) : (
+                <><Camera className="h-4 w-4" /> Baixar Imagem (PNG)</>
+              )}
+            </Button>
+            {previewMultiPayers && (
+              <Button 
+                variant="outline" 
+                className="gap-1.5 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/10"
+                onClick={() => handleCopyMultiWhatsApp(previewMultiPayers)}
+              >
+                {copiedMulti ? <Check className="h-4 w-4 text-emerald-600" /> : <Share2 className="h-4 w-4" />}
+                {copiedMulti ? 'Copiado!' : 'Copiar Texto para WhatsApp'}
+              </Button>
+            )}
+            <Button variant="ghost" onClick={() => setPreviewMultiPayers(null)}>
               Fechar
             </Button>
           </DialogFooter>
