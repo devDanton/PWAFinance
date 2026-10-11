@@ -36,12 +36,14 @@ export function SplitTransactionModal({
   transaction,
   payers,
   open,
-  onOpenChange
+  onOpenChange,
+  onSuccess
 }: {
   transaction: TransactionToSplit | null;
   payers: Payer[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onSuccess?: (transactionId: string, hasSplits: boolean) => void;
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -171,6 +173,9 @@ export function SplitTransactionModal({
       if (res.error) {
         setErrorMsg('Erro ao salvar: ' + res.error)
       } else {
+        if (onSuccess) {
+          onSuccess(transaction.id, payload.length > 0)
+        }
         handleClose(false)
         router.refresh()
       }
@@ -187,6 +192,9 @@ export function SplitTransactionModal({
       if (res.error) {
         setErrorMsg('Erro ao limpar rateio: ' + res.error)
       } else {
+        if (onSuccess) {
+          onSuccess(transaction.id, false)
+        }
         handleClose(false)
         router.refresh()
       }

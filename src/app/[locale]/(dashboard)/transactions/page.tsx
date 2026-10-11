@@ -24,6 +24,28 @@ export default async function TransactionsPage() {
     .select('*, workspaces(name), credit_cards(name), categories(name), payers(name)')
     .order(safeSortField, { ascending: sortDir === 'asc' })
 
+  // Query transaction splits to identify transactions that have splits
+  const splitCountsByTxId: Record<string, number> = {}
+  try {
+    const { data: splitsData } = await supabase
+      .from('transaction_splits')
+      .select('transaction_id')
+
+    if (splitsData) {
+      splitsData.forEach((s: { transaction_id: string }) => {
+        splitCountsByTxId[s.transaction_id] = (splitCountsByTxId[s.transaction_id] || 0) + 1
+      })
+    }
+  } catch (err) {
+    console.warn('Tabela transaction_splits ainda não foi criada no banco de dados:', err)
+  }
+
+  const transactionsWithSplits = (transactions || []).map((tx) => ({
+    ...tx,
+    has_splits: Boolean(splitCountsByTxId[tx.id] && splitCountsByTxId[tx.id] > 0),
+    splits_count: splitCountsByTxId[tx.id] || 0
+  }))
+
   const todayDate = new Date().toISOString().split('T')[0]
 
   return (
@@ -36,7 +58,7 @@ export default async function TransactionsPage() {
       </div>
 
       <TransactionList 
-        initialTransactions={transactions || []} 
+        initialTransactions={transactionsWithSplits} 
         workspaces={workspaces || []} 
         cards={cards || []} 
         categories={categories || []}

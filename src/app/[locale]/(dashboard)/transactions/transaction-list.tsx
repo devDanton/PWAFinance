@@ -68,6 +68,7 @@ export function TransactionList({
 
   // Split Transaction state
   const [splittingTx, setSplittingTx] = useState<TransactionToSplit | null>(null)
+  const [localSplitOverrides, setLocalSplitOverrides] = useState<Record<string, boolean>>({})
 
   // Client-side filtering & sorting
   let filteredTransactions = [...initialTransactions]
@@ -724,9 +725,27 @@ export function TransactionList({
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="icon" onClick={() => setSplittingTx(tx)} className="text-muted-foreground hover:text-primary h-8 w-8" title="Ratear Despesa">
-                          <Split className="h-4 w-4" />
-                        </Button>
+                        {(() => {
+                          const hasSplit = localSplitOverrides[tx.id] !== undefined 
+                            ? localSplitOverrides[tx.id] 
+                            : Boolean(tx.has_splits || (tx.splits_count && tx.splits_count > 0))
+
+                          return (
+                            <Button 
+                              variant={hasSplit ? "secondary" : "ghost"} 
+                              size="icon" 
+                              onClick={() => setSplittingTx(tx)} 
+                              className={`h-8 w-8 transition-colors ${
+                                hasSplit 
+                                  ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-background dark:text-amber-400 dark:hover:bg-amber-500/30' 
+                                  : 'text-muted-foreground hover:text-primary'
+                              }`} 
+                              title={hasSplit ? "Despesa com Rateio (Clique para gerenciar)" : "Ratear Despesa"}
+                            >
+                              <Split className="h-4 w-4" />
+                            </Button>
+                          )
+                        })()}
                         <Button variant="ghost" size="icon" onClick={() => handleClone(tx)} className="text-muted-foreground h-8 w-8" title="Clonar">
                           <Copy className="h-4 w-4" />
                         </Button>
@@ -757,6 +776,12 @@ export function TransactionList({
         payers={payers}
         open={Boolean(splittingTx)}
         onOpenChange={(open) => { if (!open) setSplittingTx(null) }}
+        onSuccess={(txId, hasSplits) => {
+          setLocalSplitOverrides(prev => ({
+            ...prev,
+            [txId]: hasSplits
+          }))
+        }}
       />
     </div>
   )
