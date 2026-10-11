@@ -737,7 +737,7 @@ export function TransactionList({
                               onClick={() => setSplittingTx(tx)} 
                               className={`h-8 w-8 transition-colors ${
                                 hasSplit 
-                                  ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-background dark:text-amber-400 dark:hover:bg-amber-500/30' 
+                                  ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-500/20 dark:text-amber-400 dark:hover:bg-amber-500/30' 
                                   : 'text-muted-foreground hover:text-primary'
                               }`} 
                               title={hasSplit ? "Despesa com Rateio (Clique para gerenciar)" : "Ratear Despesa"}
