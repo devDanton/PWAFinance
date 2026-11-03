@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Papa from 'papaparse'
-import { Upload, ArrowRight, Check, Download, FileSpreadsheet, ClipboardPaste } from 'lucide-react'
+import { Upload, ArrowRight, Check, Download, FileSpreadsheet, ClipboardPaste, CheckCircle2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
@@ -13,8 +13,14 @@ import { importTransactions } from '@/app/actions/transactions'
 import { downloadTransactionTemplateCsv, parseSplits, TransactionSplitInput } from '@/lib/csv-template'
 import { useRouter } from 'next/navigation'
 
-type ImportStep = 'setup' | 'mapping' | 'preview' | 'importing'
+type ImportStep = 'setup' | 'mapping' | 'preview' | 'importing' | 'completed'
 type InputMethod = 'file' | 'text'
+
+interface ImportResultSummary {
+  added: number;
+  ignored: number;
+  total: number;
+}
 
 interface ImportTransactionPreview {
   date: string;
@@ -48,6 +54,7 @@ export function ImportCsvModal({
   const [headers, setHeaders] = useState<string[]>([]);
   const [rawData, setRawData] = useState<Record<string, string>[]>([]);
   const [previewData, setPreviewData] = useState<ImportTransactionPreview[]>([]);
+  const [importResult, setImportResult] = useState<ImportResultSummary | null>(null);
   
   const [mapping, setMapping] = useState({
     date: '',
@@ -72,6 +79,7 @@ export function ImportCsvModal({
     setHeaders([])
     setRawData([])
     setPreviewData([])
+    setImportResult(null)
     setMapping({
       date: '',
       description: '',
@@ -295,8 +303,12 @@ export function ImportCsvModal({
       alert('Erro na importação: ' + res.error)
       setStep('preview')
     } else {
-      setOpen(false)
-      resetState()
+      const added = res.count ?? 0
+      const total = res.total ?? previewData.length
+      const ignored = res.ignoredCount ?? (total - added)
+
+      setImportResult({ added, ignored, total })
+      setStep('completed')
       router.refresh()
     }
   }
@@ -656,6 +668,37 @@ export function ImportCsvModal({
           <div className="py-12 flex flex-col items-center justify-center space-y-4">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
             <p className="text-lg font-medium">Salvando transações e rateios...</p>
+          </div>
+        )}
+
+        {step === 'completed' && importResult && (
+          <div className="py-6 flex flex-col items-center text-center space-y-4">
+            <div className="h-14 w-14 rounded-full bg-emerald-500/10 text-emerald-500 flex items-center justify-center">
+              <CheckCircle2 className="h-8 w-8" />
+            </div>
+            <div className="space-y-1">
+              <DialogTitle className="text-xl">Importação concluída!</DialogTitle>
+              <DialogDescription className="text-base text-foreground font-medium pt-2">
+                Importação concluída: {importResult.added} {importResult.added === 1 ? 'novo lançamento adicionado' : 'novos lançamentos adicionados'}
+                {importResult.ignored > 0
+                  ? ` (${importResult.ignored} ${importResult.ignored === 1 ? 'duplicado ignorado' : 'duplicados ignorados'} com segurança).`
+                  : ' (duplicados ignorados com segurança).'}
+              </DialogDescription>
+              <p className="text-xs text-muted-foreground pt-1">
+                Total analisado: {importResult.total} linha(s) de lançamento.
+              </p>
+            </div>
+            <div className="pt-4 w-full flex justify-end">
+              <Button 
+                onClick={() => {
+                  setOpen(false)
+                  resetState()
+                }}
+                className="bg-emerald-600 hover:bg-emerald-700 w-full sm:w-auto"
+              >
+                Concluir
+              </Button>
+            </div>
           </div>
         )}
       </DialogContent>

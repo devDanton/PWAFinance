@@ -346,7 +346,10 @@ export async function importTransactions(payload: {
     }
   }
 
-  // Format transactions for insertion
+  // Format transactions for insertion with occurrence_index to distinguish
+  // legitimately identical transactions (e.g. multiple refunds/same-day identical expenses)
+  const occurrenceTracker: Record<string, number> = {};
+
   const transactionsToInsert = transactions.map(t => {
     let category_id = null;
     if (t.category_name) {
@@ -366,31 +369,46 @@ export async function importTransactions(payload: {
       }
     }
 
+    const dueDate = t.due_date || t.date;
+    const groupKey = `${workspace_id}|${tx_card_id || 'none'}|${dueDate}|${t.date}|${t.description.trim()}|${t.amount}`;
+    const nextOccurrence = (occurrenceTracker[groupKey] || 0) + 1;
+    occurrenceTracker[groupKey] = nextOccurrence;
+
     return {
       workspace_id,
       created_by: user.id,
       type: t.type,
       amount: t.amount,
       date: t.date,
-      due_date: t.due_date || t.date,
+      due_date: dueDate,
       description: t.description,
       category_id,
       payer_id,
       credit_card_id: tx_card_id,
       installments: 1,
       is_paid: t.is_paid !== undefined ? t.is_paid : true,
+      occurrence_index: nextOccurrence,
     };
   });
 
   const { data: insertedTxs, error } = await supabase
     .from('transactions')
-    .insert(transactionsToInsert)
-    .select('id');
+    .upsert(transactionsToInsert, {
+      onConflict: 'workspace_id, credit_card_id, due_date, date, description, amount, occurrence_index',
+      ignoreDuplicates: true
+    })
+    .select('id, workspace_id, credit_card_id, due_date, date, description, amount, occurrence_index');
 
-  if (error) return { error: error.message };
+  if (error) {
+    console.error('Erro ao importar despesas/transações:', error);
+    return { error: error.message };
+  }
 
-  // If there are splits, insert them into transaction_splits
-  if (insertedTxs && insertedTxs.length === transactions.length) {
+  const insertedCount = insertedTxs ? insertedTxs.length : 0;
+  const ignoredCount = transactionsToInsert.length - insertedCount;
+
+  // If there are splits, insert them into transaction_splits for inserted transactions
+  if (insertedTxs && insertedTxs.length > 0) {
     const splitsToInsert: Array<{
       transaction_id: string;
       payer_id: string;
@@ -398,15 +416,26 @@ export async function importTransactions(payload: {
       is_paid: boolean;
     }> = [];
 
+    // Map inserted transaction to original transaction to match splits
     transactions.forEach((t, idx) => {
       if (t.splits && t.splits.length > 0) {
-        const txId = insertedTxs[idx]?.id;
-        if (txId) {
+        const itemToInsert = transactionsToInsert[idx];
+        const matchedInserted = insertedTxs.find(it => 
+          it.workspace_id === itemToInsert.workspace_id &&
+          (it.credit_card_id ?? null) === (itemToInsert.credit_card_id ?? null) &&
+          (it.due_date ?? null) === (itemToInsert.due_date ?? null) &&
+          it.date === itemToInsert.date &&
+          it.description === itemToInsert.description &&
+          Number(it.amount) === Number(itemToInsert.amount) &&
+          it.occurrence_index === itemToInsert.occurrence_index
+        );
+
+        if (matchedInserted?.id) {
           t.splits.forEach(s => {
             const pId = payerMap[s.payer_name.trim().toLowerCase()];
             if (pId) {
               splitsToInsert.push({
-                transaction_id: txId,
+                transaction_id: matchedInserted.id,
                 payer_id: pId,
                 amount: s.amount,
                 is_paid: s.is_paid !== undefined ? s.is_paid : false,
@@ -428,7 +457,12 @@ export async function importTransactions(payload: {
   }
 
   revalidatePath('/', 'layout');
-  return { success: true, count: transactionsToInsert.length };
+  return { 
+    success: true, 
+    count: insertedCount,
+    total: transactionsToInsert.length,
+    ignoredCount
+  };
 }
 
 export async function bulkDeleteTransactions(ids: string[]) {
