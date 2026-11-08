@@ -1,8 +1,19 @@
 import { createClient } from '@/lib/supabase/server'
 import { TransactionList } from './transaction-list'
 
-export default async function TransactionsPage() {
+interface TransactionsPageProps {
+  searchParams: Promise<{
+    month?: string
+    startDate?: string
+    endDate?: string
+    period?: string // 'month' | 'custom' | 'all'
+    dateField?: string // 'date' | 'due_date'
+  }>
+}
+
+export default async function TransactionsPage({ searchParams }: TransactionsPageProps) {
   const supabase = await createClient()
+  const resolvedParams = await searchParams
 
   const { data: { user } } = await supabase.auth.getUser()
 
@@ -19,10 +30,43 @@ export default async function TransactionsPage() {
   const validSortColumns = ['date', 'due_date', 'amount', 'description', 'created_at', 'type', 'is_paid']
   const safeSortField = validSortColumns.includes(sortField) ? sortField : 'date'
 
-  const { data: transactions } = await supabase
+  // Período padrão: mês atual
+  const now = new Date()
+  const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+
+  const periodMode = resolvedParams?.period || (resolvedParams?.startDate || resolvedParams?.endDate ? 'custom' : (resolvedParams?.month ? 'month' : 'month'))
+  const selectedMonth = resolvedParams?.month || currentYearMonth
+  const targetDateField = resolvedParams?.dateField === 'date' ? 'date' : 'due_date'
+
+  let query = supabase
     .from('transactions')
     .select('*, workspaces(name), credit_cards(name), categories(name), payers(name)')
-    .order(safeSortField, { ascending: sortDir === 'asc' })
+
+  // Aplica filtros de data no Supabase
+  if (periodMode === 'month') {
+    const [yearStr, monthStr] = selectedMonth.split('-')
+    const year = parseInt(yearStr, 10)
+    const month = parseInt(monthStr, 10)
+    
+    // Início e fim do mês
+    const startOfMonth = `${yearStr}-${monthStr.padStart(2, '0')}-01`
+    const lastDay = new Date(year, month, 0).getDate()
+    const endOfMonth = `${yearStr}-${monthStr.padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
+
+    query = query
+      .gte(targetDateField, startOfMonth)
+      .lte(targetDateField, endOfMonth)
+  } else if (periodMode === 'custom') {
+    if (resolvedParams?.startDate) {
+      query = query.gte(targetDateField, resolvedParams.startDate)
+    }
+    if (resolvedParams?.endDate) {
+      query = query.lte(targetDateField, resolvedParams.endDate)
+    }
+  }
+  // Se periodMode === 'all', não filtra por data no Supabase
+
+  const { data: transactions } = await query.order(safeSortField, { ascending: sortDir === 'asc' })
 
   // Query transaction splits to identify transactions that have splits
   const splitCountsByTxId: Record<string, number> = {}
@@ -65,6 +109,11 @@ export default async function TransactionsPage() {
         payers={payers || []}
         initialSortPreference={sortPref}
         todayDate={todayDate}
+        currentPeriodMode={periodMode}
+        currentSelectedMonth={selectedMonth}
+        currentStartDate={resolvedParams?.startDate || ''}
+        currentEndDate={resolvedParams?.endDate || ''}
+        currentDateField={targetDateField}
       />
     </div>
   )

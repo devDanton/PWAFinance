@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
-import { Plus, Trash2, ArrowDownCircle, ArrowUpCircle, Pencil, Copy, ArrowUpDown, ArrowUp, ArrowDown, Filter, Download, Split } from 'lucide-react'
+import { useState, useTransition } from 'react'
+import { Plus, Trash2, ArrowDownCircle, ArrowUpCircle, Pencil, Copy, ArrowUpDown, ArrowUp, ArrowDown, Filter, Download, Split, ChevronLeft, ChevronRight, Calendar, Loader2 } from 'lucide-react'
 import { format } from 'date-fns'
+import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { createTransaction, deleteTransaction, toggleTransactionPaid, updateTransaction } from '@/app/actions/transactions'
 import { updateTransactionSortPreference } from '@/app/actions/preferences'
 import { createSubscription } from '@/app/actions/subscriptions'
@@ -28,7 +29,12 @@ export function TransactionList({
   categories,
   payers,
   initialSortPreference = 'date:desc',
-  todayDate
+  todayDate,
+  currentPeriodMode = 'month',
+  currentSelectedMonth,
+  currentStartDate = '',
+  currentEndDate = '',
+  currentDateField = 'due_date'
 }: { 
   initialTransactions: any[], 
   workspaces: any[], 
@@ -36,8 +42,84 @@ export function TransactionList({
   categories: any[],
   payers: any[],
   initialSortPreference?: string,
-  todayDate: string
+  todayDate: string,
+  currentPeriodMode?: string,
+  currentSelectedMonth?: string,
+  currentStartDate?: string,
+  currentEndDate?: string,
+  currentDateField?: string
 }) {
+  const router = useRouter()
+  const pathname = usePathname()
+  const searchParams = useSearchParams()
+  const [isPending, startTransition] = useTransition()
+
+  // Estado do filtro por servidor (Supabase)
+  const [serverPeriodMode, setServerPeriodMode] = useState<'month' | 'custom' | 'all'>(
+    (currentPeriodMode as 'month' | 'custom' | 'all') || 'month'
+  )
+  const [serverMonth, setServerMonth] = useState<string>(
+    currentSelectedMonth || todayDate.slice(0, 7)
+  )
+  const [serverDateField, setServerDateField] = useState<'date' | 'due_date'>(
+    (currentDateField as 'date' | 'due_date') || 'due_date'
+  )
+  const [customRangeStart, setCustomRangeStart] = useState<string>(currentStartDate)
+  const [customRangeEnd, setCustomRangeEnd] = useState<string>(currentEndDate)
+
+  function updateServerPeriod(mode: 'month' | 'custom' | 'all', newMonth?: string, start?: string, end?: string, field?: 'date' | 'due_date') {
+    const params = new URLSearchParams(searchParams.toString())
+    const targetField = field || serverDateField
+
+    params.set('dateField', targetField)
+    params.set('period', mode)
+
+    if (mode === 'month') {
+      const m = newMonth || serverMonth
+      params.set('month', m)
+      params.delete('startDate')
+      params.delete('endDate')
+    } else if (mode === 'custom') {
+      params.delete('month')
+      if (start) params.set('startDate', start); else params.delete('startDate')
+      if (end) params.set('endDate', end); else params.delete('endDate')
+    } else {
+      // all
+      params.delete('month')
+      params.delete('startDate')
+      params.delete('endDate')
+    }
+
+    startTransition(() => {
+      router.push(`${pathname}?${params.toString()}`)
+    })
+  }
+
+  function handlePrevMonth() {
+    const [y, m] = serverMonth.split('-').map(Number)
+    const prevDate = new Date(y, m - 2, 1)
+    const nextStr = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`
+    setServerMonth(nextStr)
+    setServerPeriodMode('month')
+    updateServerPeriod('month', nextStr)
+  }
+
+  function handleNextMonth() {
+    const [y, m] = serverMonth.split('-').map(Number)
+    const nextDate = new Date(y, m, 1)
+    const nextStr = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`
+    setServerMonth(nextStr)
+    setServerPeriodMode('month')
+    updateServerPeriod('month', nextStr)
+  }
+
+  function handleCurrentMonth() {
+    const currentStr = todayDate.slice(0, 7)
+    setServerMonth(currentStr)
+    setServerPeriodMode('month')
+    updateServerPeriod('month', currentStr)
+  }
+
   const [open, setOpen] = useState(false)
   const [selectedWorkspace, setSelectedWorkspace] = useState(workspaces[0]?.id || '')
   const [editingTx, setEditingTx] = useState<any>(null)
@@ -113,10 +195,18 @@ export function TransactionList({
     // 1. Tratamento para ordenação por data (compra ou vencimento) como Date real
     if (sortField === 'date' || sortField === 'due_date') {
       const getTimestamp = (tx: Record<string, unknown>, field: string) => {
-        const val = (field === 'due_date' ? (tx.due_date || tx.date) : tx.date) as string | undefined
-        if (!val) return 0
-        const dateObj = new Date(val.includes('T') ? val : val + 'T12:00:00Z')
-        const t = dateObj.getTime()
+        const raw = (field === 'due_date' ? (tx.due_date || tx.date) : (tx.date || tx.due_date)) as string | undefined
+        if (!raw) return 0
+        const dateStr = String(raw).trim()
+        const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/)
+        if (match) {
+          const year = parseInt(match[1], 10)
+          const month = parseInt(match[2], 10) - 1
+          const day = parseInt(match[3], 10)
+          return Date.UTC(year, month, day)
+        }
+        const parsed = new Date(dateStr)
+        const t = parsed.getTime()
         return isNaN(t) ? 0 : t
       }
 
@@ -263,8 +353,156 @@ export function TransactionList({
   const formatCurrency = (value: number) => 
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
 
+  // Label amigável para o mês selecionado
+  const getMonthLabel = (yearMonth: string) => {
+    try {
+      const [y, m] = yearMonth.split('-').map(Number)
+      const date = new Date(y, m - 1, 1)
+      const formatted = date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+      return formatted.charAt(0).toUpperCase() + formatted.slice(1)
+    } catch {
+      return yearMonth
+    }
+  }
+
   return (
     <div className="space-y-4">
+      {/* Barra de Seleção de Período do Supabase */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-card p-3 rounded-xl border shadow-sm">
+        <div className="flex flex-wrap items-center gap-2">
+          {serverPeriodMode === 'month' ? (
+            <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-lg">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-md"
+                onClick={handlePrevMonth}
+                disabled={isPending}
+                title="Mês anterior"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+
+              <div className="flex items-center gap-1.5 px-2">
+                <Calendar className="h-4 w-4 text-primary" />
+                <span className="font-semibold text-sm min-w-[130px] text-center">
+                  {getMonthLabel(serverMonth)}
+                </span>
+                <input
+                  type="month"
+                  value={serverMonth}
+                  onChange={(e) => {
+                    if (e.target.value) {
+                      setServerMonth(e.target.value)
+                      updateServerPeriod('month', e.target.value)
+                    }
+                  }}
+                  className="sr-only"
+                  id="month-picker"
+                />
+              </div>
+
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 rounded-md"
+                onClick={handleNextMonth}
+                disabled={isPending}
+                title="Próximo mês"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : serverPeriodMode === 'custom' ? (
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="font-semibold text-sm flex items-center gap-1">
+                <Calendar className="h-4 w-4 text-primary" /> Período Personalizado:
+              </span>
+              <Input
+                type="date"
+                value={customRangeStart}
+                onChange={(e) => setCustomRangeStart(e.target.value)}
+                className="h-8 w-32 text-xs"
+              />
+              <span>até</span>
+              <Input
+                type="date"
+                value={customRangeEnd}
+                onChange={(e) => setCustomRangeEnd(e.target.value)}
+                className="h-8 w-32 text-xs"
+              />
+              <Button
+                size="sm"
+                className="h-8 text-xs"
+                onClick={() => updateServerPeriod('custom', undefined, customRangeStart, customRangeEnd)}
+                disabled={isPending}
+              >
+                Aplicar
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 px-2">
+              <Calendar className="h-4 w-4 text-primary" />
+              <span className="font-semibold text-sm">Visualizando Todas as Transações</span>
+            </div>
+          )}
+
+          {isPending && (
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground ml-1" />
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Campo de referência: Compra ou Vencimento */}
+          <Select
+            value={serverDateField}
+            onValueChange={(val: 'date' | 'due_date') => {
+              setServerDateField(val)
+              updateServerPeriod(serverPeriodMode, serverMonth, customRangeStart, customRangeEnd, val)
+            }}
+          >
+            <SelectTrigger className="h-8 text-xs w-[135px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="date">Data da Compra</SelectItem>
+              <SelectItem value="due_date">Data de Vencimento</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Atalho Mês Atual */}
+          {serverPeriodMode === 'month' && serverMonth !== todayDate.slice(0, 7) && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 text-xs"
+              onClick={handleCurrentMonth}
+              disabled={isPending}
+            >
+              Mês Atual
+            </Button>
+          )}
+
+          {/* Seletor de Modo: Mês / Customizado / Todas */}
+          <Select
+            value={serverPeriodMode}
+            onValueChange={(val: 'month' | 'custom' | 'all') => {
+              setServerPeriodMode(val)
+              updateServerPeriod(val, serverMonth, customRangeStart, customRangeEnd)
+            }}
+          >
+            <SelectTrigger className="h-8 text-xs w-[120px]">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="month">Mensal</SelectItem>
+              <SelectItem value="custom">Personalizado</SelectItem>
+              <SelectItem value="all">Todas</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div className="rounded-lg border bg-card p-4 shadow-sm">
           <div className="text-sm font-medium text-muted-foreground">Receitas</div>
@@ -633,8 +871,11 @@ export function TransactionList({
                   onCheckedChange={handleSelectAll}
                 />
               </TableHead>
+              <TableHead className="cursor-pointer select-none" onClick={() => handleSort('due_date')}>
+                <div className="flex items-center">Vencimento {getSortIcon('due_date')}</div>
+              </TableHead>
               <TableHead className="cursor-pointer select-none" onClick={() => handleSort('date')}>
-                <div className="flex items-center">Datas {getSortIcon('date')}</div>
+                <div className="flex items-center">Compra {getSortIcon('date')}</div>
               </TableHead>
               <TableHead className="cursor-pointer select-none" onClick={() => handleSort('description')}>
                 <div className="flex items-center">Descrição {getSortIcon('description')}</div>
@@ -655,7 +896,7 @@ export function TransactionList({
           <TableBody>
             {filteredTransactions.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="text-center text-muted-foreground h-24">
+                <TableCell colSpan={9} className="text-center text-muted-foreground h-24">
                   Nenhuma transação encontrada.
                 </TableCell>
               </TableRow>
@@ -664,6 +905,9 @@ export function TransactionList({
                 const isIncome = tx.type === 'income'
                 const formattedAmount = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(tx.amount)
                 
+                const dueDateDisplay = tx.due_date ? tx.due_date : tx.date
+                const purchaseDateDisplay = tx.date
+
                 return (
                   <TableRow key={tx.id}>
                     <TableCell>
@@ -672,13 +916,11 @@ export function TransactionList({
                         onCheckedChange={(c) => handleSelectRow(tx.id, !!c)}
                       />
                     </TableCell>
-                    <TableCell>
-                      <div className="flex flex-col">
-                        <span className="font-medium">{tx.due_date ? format(new Date(tx.due_date + 'T12:00:00'), 'dd/MM/yyyy') : format(new Date(tx.date + 'T12:00:00'), 'dd/MM/yyyy')}</span>
-                        {tx.due_date && tx.due_date !== tx.date && (
-                          <span className="text-xs text-muted-foreground">Compra: {format(new Date(tx.date + 'T12:00:00'), 'dd/MM/yyyy')}</span>
-                        )}
-                      </div>
+                    <TableCell className="font-medium whitespace-nowrap">
+                      {format(new Date(dueDateDisplay + 'T12:00:00'), 'dd/MM/yyyy')}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground whitespace-nowrap text-xs">
+                      {format(new Date(purchaseDateDisplay + 'T12:00:00'), 'dd/MM/yyyy')}
                     </TableCell>
                     <TableCell className="font-medium">
                       <div className="flex flex-col gap-1">
