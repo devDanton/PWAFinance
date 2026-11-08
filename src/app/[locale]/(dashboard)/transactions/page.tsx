@@ -93,7 +93,7 @@ export default async function TransactionsPage({ searchParams }: TransactionsPag
   const todayDate = new Date().toISOString().split('T')[0]
 
   return (
-    <div className="space-y-4 sm:space-y-6">
+    <div className="space-y-4 sm:space-y-6 w-full max-w-full overflow-x-hidden">
       <div>
         <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">Transações</h1>
         <p className="text-xs sm:text-sm text-muted-foreground">

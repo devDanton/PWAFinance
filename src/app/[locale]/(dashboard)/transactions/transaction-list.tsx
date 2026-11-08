@@ -172,6 +172,11 @@ export function TransactionList({
   const [splittingTx, setSplittingTx] = useState<TransactionToSplit | null>(null)
   const [localSplitOverrides, setLocalSplitOverrides] = useState<Record<string, boolean>>({})
 
+  // Filtro de cartões em memória pura (evita re-render de toda a árvore)
+  const handleSelectCard = (cardId: string) => {
+    setFilterCard((prev) => (prev === cardId ? 'all' : cardId))
+  }
+
   // Client-side filtering & sorting
   let filteredTransactions = [...initialTransactions]
 
@@ -387,7 +392,7 @@ export function TransactionList({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 w-full max-w-full overflow-x-hidden">
       {/* Barra de Seleção de Período do Supabase */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 bg-card p-2.5 sm:p-3 rounded-xl border shadow-xs">
         <div className="flex items-center justify-between sm:justify-start gap-1 w-full sm:w-auto">
@@ -577,9 +582,8 @@ export function TransactionList({
       </div>
 
       {/* Conteúdo Expansível: Filtros Secundários e Cards de Cartão */}
-      {showSecondaryFilters && (
-        <div className="space-y-4 p-3.5 rounded-xl border bg-muted/20 animate-in fade-in-50 duration-200">
-          {/* Cards de Filtro Rápido de Cartões de Crédito */}
+      <div className={`space-y-4 p-3.5 rounded-xl border bg-muted/20 transition-all ${showSecondaryFilters ? 'block' : 'hidden'}`}>
+        {/* Cards de Filtro Rápido de Cartões de Crédito */}
           {cards.length > 0 && (
             <div className="flex flex-col gap-2">
               <div className="flex items-center justify-between text-xs text-muted-foreground px-0.5">
@@ -597,57 +601,45 @@ export function TransactionList({
                   </Button>
                 )}
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setFilterCard('all')}
-                  className={`flex items-center gap-2 p-2.5 rounded-lg border text-left transition-all ${
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-left transition-all ${
                     filterCard === 'all'
                       ? 'border-primary bg-primary/10 shadow-xs ring-1 ring-primary'
                       : 'bg-card hover:bg-muted/50 border-border/70'
                   }`}
                 >
-                  <div className="h-7 w-7 rounded-md bg-muted flex items-center justify-center shrink-0">
-                    <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />
+                  <div className="h-5 w-5 rounded-md bg-muted flex items-center justify-center shrink-0">
+                    <CreditCard className="h-3 w-3 text-muted-foreground" />
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-xs font-semibold truncate leading-tight">Todos</div>
-                    <div className="text-[10px] text-muted-foreground truncate leading-tight">Todos cartões</div>
-                  </div>
+                  <span className="text-xs font-semibold truncate leading-tight">Todos os cartões</span>
                 </button>
 
                 {cards.map((card) => {
                   const isSelected = filterCard === card.id
-                  const cardTxs = initialTransactions.filter(t => t.credit_card_id === card.id)
-                  const cardExpense = cardTxs
-                    .filter(t => t.type === 'expense')
-                    .reduce((sum, t) => sum + Number(t.amount || 0), 0)
 
                   return (
                     <button
                       key={card.id}
                       type="button"
-                      onClick={() => setFilterCard(isSelected ? 'all' : card.id)}
-                      className={`flex items-center gap-2 p-2.5 rounded-lg border text-left transition-all ${
+                      onClick={() => handleSelectCard(card.id)}
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-left transition-all ${
                         isSelected
                           ? 'border-primary bg-primary/10 shadow-xs ring-1 ring-primary'
                           : 'bg-card hover:bg-muted/50 border-border/70'
                       }`}
                     >
                       <div
-                        className="h-7 w-7 rounded-md flex items-center justify-center shrink-0 shadow-2xs"
+                        className="h-5 w-5 rounded-md flex items-center justify-center shrink-0 shadow-2xs"
                         style={{ backgroundColor: card.color || '#3b82f6' }}
                       >
-                        <CreditCard className="h-3.5 w-3.5 text-white" />
+                        <CreditCard className="h-3 w-3 text-white" />
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-xs font-semibold truncate leading-tight" title={card.name}>
-                          {card.name}
-                        </div>
-                        <div className="text-[10px] text-muted-foreground truncate leading-tight font-medium">
-                          {formatCurrency(cardExpense)}
-                        </div>
-                      </div>
+                      <span className="text-xs font-semibold truncate leading-tight" title={card.name}>
+                        {card.name}
+                      </span>
                     </button>
                   )
                 })}
@@ -813,110 +805,132 @@ export function TransactionList({
             </Popover>
           </div>
         </div>
-      )}
 
       {/* Barra de Ações Principais (Apenas Botões de Ação na Direita) */}
-      <div className="flex items-center justify-end gap-2">
-
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            className="hidden sm:inline-flex text-xs h-9"
-            onClick={() => downloadTransactionTemplateCsv()}
-            title="Baixar planilha modelo (CSV) para importação"
-          >
-            <Download className="mr-1.5 h-3.5 w-3.5" /> Modelo CSV
-          </Button>
+      <div className="flex flex-wrap items-center justify-end gap-2 w-full">
+        <Button
+          variant="outline"
+          size="sm"
+          className="hidden sm:inline-flex text-xs h-9"
+          onClick={() => downloadTransactionTemplateCsv()}
+          title="Baixar planilha modelo (CSV) para importação"
+        >
+          <Download className="mr-1.5 h-3.5 w-3.5" /> Modelo CSV
+        </Button>
+        
+        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
           <ImportCsvModal workspaces={workspaces} cards={cards} />
 
           <Dialog open={open} onOpenChange={(val) => { setOpen(val); if (!val) { setEditingTx(null); setIsCloning(false); } }}>
             <DialogTrigger asChild>
-              <Button disabled={workspaces.length === 0} onClick={() => { setEditingTx(null); setIsCloning(false); setIsRecurring(false); }}>
-                <Plus className="mr-2 h-4 w-4" /> Nova Transação
+              <Button disabled={workspaces.length === 0} onClick={() => { setEditingTx(null); setIsCloning(false); setIsRecurring(false); }} className="h-9 text-xs sm:text-sm">
+                <Plus className="mr-1.5 h-4 w-4" /> Nova Transação
               </Button>
             </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
-            <form action={handleSave} key={editingTx ? (isCloning ? 'clone' : editingTx.id) : 'new'}>
-              <DialogHeader>
-                <DialogTitle>{editingTx ? (isCloning ? 'Clonar Transação' : 'Editar Transação') : 'Lançar Transação'}</DialogTitle>
-                <DialogDescription>
+          <DialogContent className="w-[95vw] sm:max-w-[480px] p-4 sm:p-6 max-h-[92vh] flex flex-col gap-0 rounded-2xl">
+            <form action={handleSave} key={editingTx ? (isCloning ? 'clone' : editingTx.id) : 'new'} className="flex flex-col max-h-[85vh]">
+              <DialogHeader className="pb-3 border-b text-left">
+                <DialogTitle className="text-base sm:text-lg">
+                  {editingTx ? (isCloning ? 'Clonar Transação' : 'Editar Transação') : 'Lançar Transação'}
+                </DialogTitle>
+                <DialogDescription className="text-xs">
                   {editingTx && !isCloning ? 'Atualize os dados da transação selecionada.' : 'Insira os dados da nova receita ou despesa.'}
                 </DialogDescription>
               </DialogHeader>
-              <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto px-1">
-                <div className="grid gap-2">
-                  <Label htmlFor="workspace_id">Workspace</Label>
-                  <Select name="workspace_id" value={selectedWorkspace} onValueChange={setSelectedWorkspace} required>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione um workspace" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {workspaces.map(w => (
-                        <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <div className="grid gap-2">
-                  <Label htmlFor="type">Tipo</Label>
-                  <Select name="type" defaultValue={editingTx?.type || "expense"} required>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="expense">Despesa</SelectItem>
-                      <SelectItem value="income">Receita</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
 
-                <div className="grid gap-2">
-                  <Label htmlFor="amount">Valor (R$)</Label>
-                  <Input id="amount" name="amount" type="number" step="0.01" placeholder="0.00" defaultValue={editingTx?.amount} required />
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="date">Data da Compra</Label>
-                  <Input id="date" name="date" type="date" required defaultValue={isCloning ? todayDate : (editingTx?.date || todayDate)} />
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="due_date">Data de Vencimento (Opcional)</Label>
-                  <Input id="due_date" name="due_date" type="date" defaultValue={isCloning ? '' : editingTx?.due_date} />
-                  <span className="text-[10px] text-muted-foreground leading-tight">Deixe em branco para calcular automaticamente.</span>
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="description">Descrição</Label>
-                  <Input id="description" name="description" placeholder="Ex: Supermercado" defaultValue={editingTx?.description} required />
-                </div>
-
-                <div className="grid gap-2">
-                  <Label htmlFor="category_id">Centro de Custo / Categoria</Label>
-                  {filteredCategories.length === 0 ? (
-                    <div className="text-sm text-amber-600 bg-amber-50 p-2 rounded">
-                      Nenhuma categoria cadastrada. Crie uma na tela de categorias primeiro.
-                    </div>
-                  ) : (
-                    <Select name="category_id" defaultValue={editingTx?.category_id || undefined} required>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione uma categoria" />
+              <div className="grid gap-3.5 py-3 overflow-y-auto px-1 flex-1 text-xs sm:text-sm">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="workspace_id" className="text-xs">Workspace</Label>
+                    <Select name="workspace_id" value={selectedWorkspace} onValueChange={setSelectedWorkspace} required>
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue placeholder="Selecione" />
                       </SelectTrigger>
                       <SelectContent>
-                        {filteredCategories.map(c => (
+                        {workspaces.map(w => (
+                          <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="type" className="text-xs">Tipo</Label>
+                    <Select name="type" defaultValue={editingTx?.type || "expense"} required>
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="expense">Despesa</SelectItem>
+                        <SelectItem value="income">Receita</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid gap-1.5">
+                  <Label htmlFor="amount" className="text-xs">Valor (R$)</Label>
+                  <Input id="amount" name="amount" type="number" step="0.01" placeholder="0.00" defaultValue={editingTx?.amount} required className="h-9 text-xs sm:text-sm font-semibold" />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="date" className="text-xs">Compra</Label>
+                    <Input id="date" name="date" type="date" required defaultValue={isCloning ? todayDate : (editingTx?.date || todayDate)} className="h-9 text-xs" />
+                  </div>
+
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="due_date" className="text-xs">Vencimento <span className="text-[10px] text-muted-foreground font-normal">(Opcional)</span></Label>
+                    <Input id="due_date" name="due_date" type="date" defaultValue={isCloning ? '' : editingTx?.due_date} className="h-9 text-xs" />
+                  </div>
+                </div>
+
+                <div className="grid gap-1.5">
+                  <Label htmlFor="description" className="text-xs">Descrição</Label>
+                  <Input id="description" name="description" placeholder="Ex: Supermercado" defaultValue={editingTx?.description} required className="h-9 text-xs" />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="category_id" className="text-xs">Categoria</Label>
+                    {filteredCategories.length === 0 ? (
+                      <div className="text-[11px] text-amber-600 bg-amber-50 dark:bg-amber-950/30 p-2 rounded">
+                        Crie na tela de categorias.
+                      </div>
+                    ) : (
+                      <Select name="category_id" defaultValue={editingTx?.category_id || undefined} required>
+                        <SelectTrigger className="h-9 text-xs">
+                          <SelectValue placeholder="Selecione" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {filteredCategories.map(c => (
+                            <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="credit_card_id" className="text-xs">Cartão <span className="text-[10px] text-muted-foreground font-normal">(Opcional)</span></Label>
+                    <Select name="credit_card_id" defaultValue={editingTx?.credit_card_id || "none"}>
+                      <SelectTrigger className="h-9 text-xs">
+                        <SelectValue placeholder="Nenhum" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhum</SelectItem>
+                        {filteredCards.map(c => (
                           <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                  )}
+                  </div>
                 </div>
 
-                <div className="grid gap-2">
-                  <Label htmlFor="payer_id">Pagador / Terceiro (Opcional)</Label>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="payer_id" className="text-xs">Pagador / Terceiro <span className="text-[10px] text-muted-foreground font-normal">(Opcional)</span></Label>
                   <Select name="payer_id" defaultValue={editingTx?.payer_id || "none"}>
-                    <SelectTrigger>
+                    <SelectTrigger className="h-9 text-xs">
                       <SelectValue placeholder="Nenhum" />
                     </SelectTrigger>
                     <SelectContent>
@@ -928,34 +942,19 @@ export function TransactionList({
                   </Select>
                 </div>
 
-                <div className="grid gap-2">
-                  <Label htmlFor="credit_card_id">Cartão de Crédito (Opcional)</Label>
-                  <Select name="credit_card_id" defaultValue={editingTx?.credit_card_id || "none"}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Nenhum" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Nenhum</SelectItem>
-                      {filteredCards.map(c => (
-                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
                 {(!editingTx || isCloning) && (
-                  <div className="flex items-center space-x-2 pt-2 pb-2 border-b">
+                  <div className="flex items-center space-x-2 pt-1 pb-1">
                     <Checkbox id="is_recurring" name="is_recurring" checked={isRecurring} onCheckedChange={(val) => setIsRecurring(!!val)} />
-                    <Label htmlFor="is_recurring" className="cursor-pointer">É uma assinatura recorrente?</Label>
+                    <Label htmlFor="is_recurring" className="cursor-pointer text-xs">É uma assinatura recorrente?</Label>
                   </div>
                 )}
 
                 {isRecurring ? (
                   <>
-                    <div className="grid gap-2">
-                      <Label htmlFor="frequency">Frequência</Label>
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="frequency" className="text-xs">Frequência</Label>
                       <Select name="frequency" defaultValue="monthly" required>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectTrigger className="h-9 text-xs"><SelectValue /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="monthly">Mensal</SelectItem>
                           <SelectItem value="yearly">Anual</SelectItem>
@@ -965,19 +964,20 @@ export function TransactionList({
                     <input type="hidden" name="next_date" value={editingTx?.date || todayDate} />
                   </>
                 ) : (
-                  <div className="grid gap-2">
-                    <Label htmlFor="installments">Parcelas</Label>
-                    <Input id="installments" name="installments" type="number" min="1" defaultValue={isCloning ? 1 : (editingTx?.installments || 1)} required />
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="installments" className="text-xs">Parcelas</Label>
+                    <Input id="installments" name="installments" type="number" min="1" defaultValue={isCloning ? 1 : (editingTx?.installments || 1)} required className="h-9 text-xs" />
                   </div>
                 )}
 
-                <div className="flex items-center space-x-2 pt-2">
+                <div className="flex items-center space-x-2 pt-1 bg-muted/30 p-2 rounded-lg">
                   <Checkbox id="is_paid" name="is_paid" value="on" defaultChecked={isCloning ? false : (editingTx ? editingTx.is_paid : false)} />
-                  <Label htmlFor="is_paid" className="cursor-pointer">Transação paga / concluída</Label>
+                  <Label htmlFor="is_paid" className="cursor-pointer text-xs font-medium">Transação já paga / concluída</Label>
                 </div>
               </div>
-              <DialogFooter>
-                <SubmitButton pendingText="Salvando...">Salvar</SubmitButton>
+
+              <DialogFooter className="pt-3 border-t mt-auto">
+                <SubmitButton pendingText="Salvando..." className="w-full sm:w-auto h-9 text-xs">Salvar Transação</SubmitButton>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -1002,7 +1002,7 @@ export function TransactionList({
       </div>
 
       {/* VISÃO DESKTOP: Tabela tradicional completa */}
-      <div className="hidden md:block rounded-md border bg-card text-card-foreground shadow-sm overflow-x-auto">
+      <div className="hidden md:block rounded-md border bg-card text-card-foreground shadow-sm overflow-x-auto w-full max-w-full">
         <Table>
           <TableHeader>
             <TableRow>
@@ -1149,7 +1149,7 @@ export function TransactionList({
       </div>
 
       {/* VISÃO MOBILE: Lista em Cards Compactos Estilo PWA/App Bancário */}
-      <div className="block md:hidden space-y-2">
+      <div className="block md:hidden space-y-2 w-full max-w-full overflow-hidden">
         {filteredTransactions.length === 0 ? (
           <div className="rounded-xl border bg-card p-6 text-center text-xs text-muted-foreground">
             Nenhuma transação encontrada.
@@ -1166,18 +1166,16 @@ export function TransactionList({
             return (
               <div
                 key={tx.id}
-                className="rounded-xl border bg-card p-3 shadow-2xs space-y-2 transition-all"
+                className="rounded-xl border bg-card p-3 shadow-2xs space-y-2 transition-all w-full max-w-full overflow-hidden"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-start gap-2.5 min-w-0">
-                    <button
-                      type="button"
-                      onClick={() => handleTogglePaid(tx.id, tx.is_paid)}
-                      className="mt-0.5 shrink-0"
-                      title={tx.is_paid ? 'Marcar como pendente' : 'Marcar como pago'}
-                    >
-                      <Checkbox checked={tx.is_paid} />
-                    </button>
+                    <div className="mt-0.5 shrink-0" title={tx.is_paid ? 'Marcar como pendente' : 'Marcar como pago'}>
+                      <Checkbox 
+                        checked={tx.is_paid} 
+                        onCheckedChange={() => handleTogglePaid(tx.id, tx.is_paid)}
+                      />
+                    </div>
 
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-1.5 flex-wrap">
