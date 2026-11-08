@@ -72,21 +72,21 @@ export function SubscriptionList({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
         <Input 
           placeholder="Buscar assinaturas..." 
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="max-w-sm"
+          className="w-full sm:max-w-sm"
         />
         
         <Dialog open={open} onOpenChange={(val) => { setOpen(val); if (!val) setEditingSub(null); }}>
           <DialogTrigger asChild>
-            <Button disabled={workspaces.length === 0} onClick={() => setEditingSub(null)}>
+            <Button disabled={workspaces.length === 0} onClick={() => setEditingSub(null)} className="w-full sm:w-auto">
               <Plus className="mr-2 h-4 w-4" /> Nova Assinatura
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="w-[95vw] sm:max-w-[460px]">
             <form action={handleSave} key={editingSub ? editingSub.id : 'new'}>
               <DialogHeader>
                 <DialogTitle>{editingSub ? 'Editar Assinatura' : 'Nova Assinatura'}</DialogTitle>
@@ -185,7 +185,92 @@ export function SubscriptionList({
         </Dialog>
       </div>
 
-      <div className="rounded-md border bg-card text-card-foreground shadow-sm">
+      {/* Visão Mobile: Cards compactos */}
+      <div className="block md:hidden space-y-2.5">
+        {filteredSubscriptions.length === 0 ? (
+          <div className="rounded-lg border bg-card p-8 text-center text-sm text-muted-foreground">
+            Nenhuma assinatura encontrada.
+          </div>
+        ) : (
+          filteredSubscriptions.map((sub) => {
+            const isIncome = sub.type === 'income'
+            const formattedAmount = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(sub.amount)
+            const totalSpent = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(
+              transactions
+                .filter(tx => tx.is_paid && tx.type === sub.type && tx.description.toLowerCase().trim() === sub.description.toLowerCase().trim())
+                .reduce((sum, tx) => sum + Number(tx.amount), 0)
+            )
+
+            return (
+              <div 
+                key={sub.id} 
+                className={`rounded-xl border bg-card p-3.5 shadow-xs space-y-3 transition-opacity ${!sub.active ? 'opacity-60 grayscale' : ''}`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="shrink-0 mt-0.5">
+                      {isIncome ? <ArrowUpCircle className="h-5 w-5 text-emerald-500" /> : <ArrowDownCircle className="h-5 w-5 text-rose-500" />}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-sm truncate">{sub.description}</p>
+                      <div className="flex items-center gap-1.5 flex-wrap mt-0.5 text-xs text-muted-foreground">
+                        <span className="capitalize">{sub.frequency === 'monthly' ? 'Mensal' : 'Anual'}</span>
+                        <span>•</span>
+                        <span>Prox: {format(new Date(sub.next_date + 'T12:00:00'), 'dd/MM/yyyy')}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-right shrink-0">
+                    <p className={`text-base font-bold ${isIncome ? 'text-emerald-500' : 'text-foreground'}`}>
+                      {isIncome ? '+' : '-'}{formattedAmount}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground">
+                      Gasto: {totalSpent}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-2 border-t text-xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {sub.categories ? (
+                      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium truncate max-w-[120px]" style={{ backgroundColor: `${sub.categories.color}20`, color: sub.categories.color }}>
+                        {sub.categories.name}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground italic text-[11px]">Sem cat.</span>
+                    )}
+                    <span className="text-muted-foreground text-[11px] truncate max-w-[100px]">
+                      {sub.workspaces?.name} {sub.credit_cards ? `• ${sub.credit_cards.name}` : ''}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex items-center gap-1 mr-1">
+                      <Checkbox 
+                        checked={sub.active} 
+                        onCheckedChange={() => handleToggleActive(sub.id, sub.active)} 
+                      />
+                      <span className={`text-[11px] font-medium ${sub.active ? 'text-emerald-500' : 'text-muted-foreground'}`}>
+                        {sub.active ? 'Ativo' : 'Pausado'}
+                      </span>
+                    </div>
+                    <Button variant="ghost" size="icon" onClick={() => handleEdit(sub)} className="text-muted-foreground h-8 w-8" title="Editar">
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => handleDelete(sub.id)} className="text-destructive h-8 w-8" title="Deletar">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )
+          })
+        )}
+      </div>
+
+      {/* Visão Desktop: Tabela clássica */}
+      <div className="hidden md:block rounded-md border bg-card text-card-foreground shadow-sm">
         <Table>
           <TableHeader>
             <TableRow>

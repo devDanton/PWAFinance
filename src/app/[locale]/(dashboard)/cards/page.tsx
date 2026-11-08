@@ -37,7 +37,7 @@ export default async function CardsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Cartões de Crédito</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Cartões de Crédito</h1>
         <p className="text-muted-foreground">
           Gerencie os cartões de crédito dos seus workspaces.
         </p>

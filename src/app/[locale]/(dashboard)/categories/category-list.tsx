@@ -56,21 +56,21 @@ export function CategoryList({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
         <Input 
           placeholder="Buscar categorias..." 
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="max-w-sm"
+          className="w-full sm:max-w-sm"
         />
         
         <Dialog open={open} onOpenChange={(val) => { setOpen(val); if (!val) setEditingCat(null); }}>
           <DialogTrigger asChild>
-            <Button disabled={workspaces.length === 0} onClick={() => setEditingCat(null)}>
+            <Button disabled={workspaces.length === 0} onClick={() => setEditingCat(null)} className="w-full sm:w-auto">
               <Plus className="mr-2 h-4 w-4" /> Nova Categoria
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="w-[95vw] sm:max-w-[425px]">
             <form action={handleSave} key={editingCat ? editingCat.id : 'new'}>
               <DialogHeader>
                 <DialogTitle>{editingCat ? 'Editar Categoria' : 'Nova Categoria'}</DialogTitle>
@@ -102,7 +102,7 @@ export function CategoryList({
                   <Label htmlFor="color">Cor</Label>
                   <div className="flex items-center gap-2">
                     <Input id="color" name="color" type="color" className="w-16 h-10 p-1 cursor-pointer" defaultValue={editingCat?.color || '#808080'} required />
-                    <span className="text-sm text-muted-foreground">Escolha uma cor para identificar na lista.</span>
+                    <span className="text-xs sm:text-sm text-muted-foreground">Escolha uma cor para identificar na lista.</span>
                   </div>
                 </div>
               </div>
@@ -114,7 +114,37 @@ export function CategoryList({
         </Dialog>
       </div>
 
-      <div className="rounded-md border bg-card text-card-foreground shadow-sm">
+      {/* Visão Mobile: Cards compactos */}
+      <div className="block md:hidden space-y-2.5">
+        {filteredCategories.length === 0 ? (
+          <div className="rounded-lg border bg-card p-8 text-center text-sm text-muted-foreground">
+            Nenhuma categoria encontrada.
+          </div>
+        ) : (
+          filteredCategories.map((cat) => (
+            <div key={cat.id} className="rounded-xl border bg-card p-3 shadow-xs flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-8 h-8 rounded-full border shadow-xs shrink-0" style={{ backgroundColor: cat.color }} />
+                <div className="min-w-0">
+                  <p className="font-medium text-sm truncate">{cat.name}</p>
+                  <p className="text-xs text-muted-foreground truncate">{cat.workspaces?.name}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <Button variant="ghost" size="icon" onClick={() => handleEdit(cat)} className="text-muted-foreground h-9 w-9" title="Editar">
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" onClick={() => handleDelete(cat.id)} className="text-destructive h-9 w-9" title="Deletar">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Visão Desktop: Tabela clássica */}
+      <div className="hidden md:block rounded-md border bg-card text-card-foreground shadow-sm">
         <Table>
           <TableHeader>
             <TableRow>

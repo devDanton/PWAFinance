@@ -52,11 +52,11 @@ export function CardList({ initialCards, workspaces }: { initialCards: any[], wo
       <div className="flex justify-end">
         <Dialog open={open} onOpenChange={(val) => { setOpen(val); if (!val) setEditingCard(null); }}>
           <DialogTrigger asChild>
-            <Button disabled={workspaces.length === 0} onClick={() => setEditingCard(null)}>
+            <Button disabled={workspaces.length === 0} onClick={() => setEditingCard(null)} className="w-full sm:w-auto">
               <Plus className="mr-2 h-4 w-4" /> Novo Cartão
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="w-[95vw] sm:max-w-[460px]">
             <form action={handleSave} key={editingCard ? editingCard.id : 'new'}>
               <DialogHeader>
                 <DialogTitle>{editingCard ? 'Editar Cartão' : 'Adicionar Cartão'}</DialogTitle>

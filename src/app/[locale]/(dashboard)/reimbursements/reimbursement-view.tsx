@@ -114,9 +114,9 @@ export function ReimbursementView({
   // Ordenação da lista de terceiros
   const [payerSort, setPayerSort] = useState<'pending_desc' | 'total_desc' | 'name_asc' | 'name_desc'>('pending_desc')
 
-  // Ordenação das tabelas de gastos de cada terceiro
-  const [tableSortField, setTableSortField] = useState<'dueDate' | 'date' | 'cardName' | 'description' | 'amount' | 'isPaid' | 'payerName'>('dueDate')
-  const [tableSortDir, setTableSortDir] = useState<'asc' | 'desc'>('desc')
+  // Ordenação das despesas (padrão: nome do cartão crescente)
+  const [tableSortField, setTableSortField] = useState<'dueDate' | 'date' | 'cardName' | 'description' | 'amount' | 'isPaid' | 'payerName'>('cardName')
+  const [tableSortDir, setTableSortDir] = useState<'asc' | 'desc'>('asc')
 
   // Estado de loading para geração de imagem em alta resolução
   const [generatingImagePayerId, setGeneratingImagePayerId] = useState<string | null>(null)
@@ -600,8 +600,8 @@ export function ReimbursementView({
       {/* 1. Header com seletor de mês */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2.5">
-            <HandCoins className="h-8 w-8 text-primary" /> Acerto de Contas
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight flex items-center gap-2 sm:gap-2.5">
+            <HandCoins className="h-6 w-6 sm:h-8 sm:w-8 text-primary shrink-0" /> Acerto de Contas
           </h1>
           <p className="text-muted-foreground text-sm">
             Relação mensal de gastos no cartão para cobrança e ressarcimento de terceiros.
@@ -956,8 +956,86 @@ export function ReimbursementView({
                   </div>
                 </div>
 
-                {/* Tabela de Despesas da Pessoa com Ordenação Interativa */}
-                <div className="overflow-x-auto">
+                {/* Visão Mobile: Lista de Compras estilo Card */}
+                <div className="block md:hidden">
+                  <div className="flex items-center justify-between px-3.5 py-2 bg-muted/20 border-b text-[11px] text-muted-foreground">
+                    <span>Ordenado por:</span>
+                    <button 
+                      type="button"
+                      onClick={() => handleTableSort('cardName')} 
+                      className="font-medium text-primary flex items-center gap-1 hover:underline"
+                    >
+                      Cartão {tableSortField === 'cardName' ? (tableSortDir === 'asc' ? 'A-Z ↑' : 'Z-A ↓') : ''}
+                    </button>
+                  </div>
+                  <div className="divide-y">
+                    {sortedExpenses.map(expense => (
+                      <div key={expense.id} className="p-3.5 space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-sm truncate">{expense.description}</p>
+                          <div className="flex items-center gap-1.5 flex-wrap text-xs text-muted-foreground mt-0.5">
+                            <span className="font-medium text-foreground">
+                              Venc: {expense.dueDate ? expense.dueDate.split('-').reverse().slice(0, 2).join('/') : expense.date.split('-').reverse().slice(0, 2).join('/')}
+                            </span>
+                            <span>•</span>
+                            <span>Compra: {expense.date.split('-').reverse().slice(0, 2).join('/')}</span>
+                          </div>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <div className="font-bold text-sm text-foreground">
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(expense.amount)}
+                          </div>
+                          {expense.isSplit && (
+                            <div className="text-[10px] text-muted-foreground">
+                              Rateio de R$ {expense.totalTxAmount.toFixed(2)}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between pt-1">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-700 dark:text-purple-300 font-medium text-[11px] truncate max-w-[150px]">
+                          <CreditCard className="h-3 w-3 shrink-0" /> {expense.cardName}
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={() => handleTogglePaid(expense)}
+                          disabled={isPending}
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                            expense.isPaid 
+                              ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/25' 
+                              : 'bg-amber-500/15 text-amber-700 dark:text-amber-300 hover:bg-amber-500/25'
+                          }`}
+                        >
+                          {expense.isPaid ? (
+                            <>
+                              <Check className="h-3 w-3" /> Recebido
+                            </>
+                          ) : (
+                            <>
+                              <Clock className="h-3 w-3" /> Pendente
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  </div>
+                  <div className="p-3 bg-muted/40 flex justify-between items-center text-xs font-semibold">
+                    <span>Total do Terceiro:</span>
+                    <div className="text-right">
+                      <div>Total: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(payer.totalAmount)}</div>
+                      <div className={payer.totalPending > 0 ? "text-amber-600 dark:text-amber-400" : "text-emerald-600"}>
+                        Pendente: {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(payer.totalPending)}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tabela de Despesas da Pessoa (Desktop) com Ordenação Interativa */}
+                <div className="hidden md:block overflow-x-auto">
                   <Table>
                     <TableHeader>
                       <TableRow className="text-xs hover:bg-transparent">

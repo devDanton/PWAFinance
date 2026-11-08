@@ -2,7 +2,7 @@
 
 import { Menu, PanelLeftClose, PanelLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
+import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { LanguageToggle } from "@/components/language-toggle"
 import { Sidebar } from "./sidebar"
@@ -22,6 +22,7 @@ export function Header() {
           </Button>
         </SheetTrigger>
         <SheetContent side="left" className="w-[280px] p-0">
+          <SheetTitle className="sr-only">Menu de Navegação</SheetTitle>
           <nav className="h-full">
             <Sidebar isMobile={true} />
           </nav>

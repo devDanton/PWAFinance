@@ -60,122 +60,160 @@ export default async function DashboardPage() {
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
   return (
-    <div className="space-y-8 pb-10">
+    <div className="space-y-6 pb-10">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
-        <p className="mt-2 text-muted-foreground">
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Dashboard</h1>
+        <p className="mt-1 text-xs sm:text-sm text-muted-foreground">
           Bem-vindo(a) de volta, {user.user_metadata?.first_name || user.email}! Aqui está o seu resumo financeiro.
         </p>
       </div>
 
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold flex items-center gap-2">
-          <Calendar className="h-5 w-5" /> Resumo do Mês
+      <div className="space-y-3">
+        <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2">
+          <Calendar className="h-4 w-4 sm:h-5 sm:w-5" /> Resumo do Mês
         </h2>
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Receitas (Mês)</CardTitle>
-              <ArrowUpCircle className="h-4 w-4 text-emerald-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-emerald-500">{formatCurrency(monthlyIncome)}</div>
-            </CardContent>
+        <div className="grid grid-cols-3 gap-2 sm:gap-4">
+          <Card className="p-3 sm:p-5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] sm:text-sm font-medium text-muted-foreground truncate">Receitas</span>
+              <ArrowUpCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-500 shrink-0" />
+            </div>
+            <div className="text-xs sm:text-2xl font-bold text-emerald-500 mt-1 sm:mt-2 truncate">{formatCurrency(monthlyIncome)}</div>
           </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Despesas (Mês)</CardTitle>
-              <ArrowDownCircle className="h-4 w-4 text-rose-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-rose-500">{formatCurrency(monthlyExpense)}</div>
-            </CardContent>
+          <Card className="p-3 sm:p-5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] sm:text-sm font-medium text-muted-foreground truncate">Despesas</span>
+              <ArrowDownCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-rose-500 shrink-0" />
+            </div>
+            <div className="text-xs sm:text-2xl font-bold text-rose-500 mt-1 sm:mt-2 truncate">{formatCurrency(monthlyExpense)}</div>
           </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Saldo (Mês)</CardTitle>
-              <Wallet className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className={`text-2xl font-bold ${monthlyBalance >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                {formatCurrency(monthlyBalance)}
-              </div>
-            </CardContent>
+          <Card className="p-3 sm:p-5">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] sm:text-sm font-medium text-muted-foreground truncate">Saldo</span>
+              <Wallet className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
+            </div>
+            <div className={`text-xs sm:text-2xl font-bold mt-1 sm:mt-2 truncate ${monthlyBalance >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+              {formatCurrency(monthlyBalance)}
+            </div>
           </Card>
         </div>
       </div>
 
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold flex items-center gap-2">
-          <Wallet className="h-5 w-5" /> Visão Geral
+      <div className="space-y-3">
+        <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2">
+          <Wallet className="h-4 w-4 sm:h-5 sm:w-5" /> Visão Geral
         </h2>
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Receitas Totais</CardTitle>
-              <ArrowUpCircle className="h-4 w-4 text-emerald-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-emerald-500">{formatCurrency(globalIncome)}</div>
-            </CardContent>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4">
+          <Card className="p-3 sm:p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs sm:text-sm font-medium text-muted-foreground truncate">Receitas Totais</span>
+              <ArrowUpCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-500 shrink-0" />
+            </div>
+            <div className="text-sm sm:text-xl font-bold text-emerald-500 mt-1 truncate">{formatCurrency(globalIncome)}</div>
           </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Despesas Totais</CardTitle>
-              <ArrowDownCircle className="h-4 w-4 text-rose-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-rose-500">{formatCurrency(globalExpense)}</div>
-            </CardContent>
+          <Card className="p-3 sm:p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs sm:text-sm font-medium text-muted-foreground truncate">Despesas Totais</span>
+              <ArrowDownCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-rose-500 shrink-0" />
+            </div>
+            <div className="text-sm sm:text-xl font-bold text-rose-500 mt-1 truncate">{formatCurrency(globalExpense)}</div>
           </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Saldo Total</CardTitle>
-              <Wallet className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className={`text-2xl font-bold ${globalBalance >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
-                {formatCurrency(globalBalance)}
-              </div>
-            </CardContent>
+          <Card className="p-3 sm:p-4">
+            <div className="flex items-center justify-between">
+              <span className="text-xs sm:text-sm font-medium text-muted-foreground truncate">Saldo Total</span>
+              <Wallet className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
+            </div>
+            <div className={`text-sm sm:text-xl font-bold mt-1 truncate ${globalBalance >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+              {formatCurrency(globalBalance)}
+            </div>
           </Card>
-          <Card className="bg-rose-50 border-rose-100 dark:bg-rose-950/20 dark:border-rose-900/30">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-rose-700 dark:text-rose-400">Total em Assinaturas</CardTitle>
-              <ReceiptText className="h-4 w-4 text-rose-500" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-rose-600 dark:text-rose-500">
-                {formatCurrency(totalSpentOnSubscriptions)}
-              </div>
-            </CardContent>
+          <Card className="p-3 sm:p-4 bg-rose-50/70 border-rose-100 dark:bg-rose-950/20 dark:border-rose-900/30">
+            <div className="flex items-center justify-between">
+              <span className="text-xs sm:text-sm font-medium text-rose-700 dark:text-rose-400 truncate">Total Assinaturas</span>
+              <ReceiptText className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-rose-500 shrink-0" />
+            </div>
+            <div className="text-sm sm:text-xl font-bold text-rose-600 dark:text-rose-500 mt-1 truncate">
+              {formatCurrency(totalSpentOnSubscriptions)}
+            </div>
           </Card>
         </div>
       </div>
 
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold flex items-center gap-2">
-          <CreditCard className="h-5 w-5" /> Atalhos e Limites
+      <div className="space-y-3">
+        <h2 className="text-base sm:text-lg font-semibold flex items-center gap-2">
+          <CreditCard className="h-4 w-4 sm:h-5 sm:w-5" /> Atalhos e Limites
         </h2>
-        <div className="grid gap-4 md:grid-cols-3">
+        
+        {/* Mobile: Card de Limites em cima, e os dois atalhos lado a lado na mesma linha */}
+        <div className="space-y-2.5 md:hidden">
+          <Link href="/cards" className="block">
+            <Card className="p-3.5 shadow-xs">
+              <div className="flex items-center justify-between pb-2 border-b">
+                <span className="text-xs font-semibold flex items-center gap-1.5">
+                  <CreditCard className="h-3.5 w-3.5 text-primary" /> Limites de Cartão ({cardsCount || 0})
+                </span>
+                <span className="text-xs font-bold text-foreground">
+                  Total: {formatCurrency(totalLimit)}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 pt-2 text-xs">
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Utilizado</span>
+                  <span className="text-sm font-bold text-rose-500 truncate">{formatCurrency(limitUsed)}</span>
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">Disponível</span>
+                  <span className="text-sm font-bold text-emerald-500 truncate">{formatCurrency(limitAvailable)}</span>
+                </div>
+              </div>
+            </Card>
+          </Link>
+
+          <div className="grid grid-cols-2 gap-2.5">
+            <Link href="/transactions" className="block">
+              <Card className="p-3 shadow-xs h-full">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-muted-foreground truncate">Transações</span>
+                  <ReceiptText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                </div>
+                <div className="text-xl font-bold mt-1">{txCount || 0}</div>
+                <p className="text-[10px] text-muted-foreground mt-0.5 truncate">Total de registros</p>
+              </Card>
+            </Link>
+
+            <Link href="/workspaces" className="block">
+              <Card className="p-3 shadow-xs h-full">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-muted-foreground truncate">Workspaces</span>
+                  <Users className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                </div>
+                <div className="text-xl font-bold mt-1">{workspacesCount || 0}</div>
+                <p className="text-[10px] text-muted-foreground mt-0.5 truncate">Ambientes criados</p>
+              </Card>
+            </Link>
+          </div>
+        </div>
+
+        {/* Desktop: Grid clássico de 3 colunas */}
+        <div className="hidden md:grid gap-4 md:grid-cols-3">
           <Link href="/cards" className="transition-transform hover:scale-[1.02]">
             <Card className="h-full">
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Limites de Cartão ({cardsCount || 0})</CardTitle>
                 <CreditCard className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
-              <CardContent className="space-y-2">
+              <CardContent className="space-y-1.5 sm:space-y-2">
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Limite Total:</span>
-                  <span className="font-bold">{formatCurrency(totalLimit)}</span>
+                  <span className="text-xs sm:text-sm text-muted-foreground">Limite Total:</span>
+                  <span className="font-bold text-sm sm:text-base">{formatCurrency(totalLimit)}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Utilizado:</span>
-                  <span className="font-bold text-rose-500">{formatCurrency(limitUsed)}</span>
+                  <span className="text-xs sm:text-sm text-muted-foreground">Utilizado:</span>
+                  <span className="font-bold text-sm sm:text-base text-rose-500">{formatCurrency(limitUsed)}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Disponível:</span>
-                  <span className="font-bold text-emerald-500">{formatCurrency(limitAvailable)}</span>
+                  <span className="text-xs sm:text-sm text-muted-foreground">Disponível:</span>
+                  <span className="font-bold text-sm sm:text-base text-emerald-500">{formatCurrency(limitAvailable)}</span>
                 </div>
               </CardContent>
             </Card>
@@ -188,8 +226,8 @@ export default async function DashboardPage() {
                 <ReceiptText className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold mt-2">{txCount || 0}</div>
-                <p className="text-xs text-muted-foreground mt-1">Total de registros</p>
+                <div className="text-2xl sm:text-3xl font-bold mt-1 sm:mt-2">{txCount || 0}</div>
+                <p className="text-xs text-muted-foreground mt-0.5 sm:mt-1">Total de registros</p>
               </CardContent>
             </Card>
           </Link>
@@ -201,8 +239,8 @@ export default async function DashboardPage() {
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold mt-2">{workspacesCount || 0}</div>
-                <p className="text-xs text-muted-foreground mt-1">Ambientes criados</p>
+                <div className="text-2xl sm:text-3xl font-bold mt-1 sm:mt-2">{workspacesCount || 0}</div>
+                <p className="text-xs text-muted-foreground mt-0.5 sm:mt-1">Ambientes criados</p>
               </CardContent>
             </Card>
           </Link>

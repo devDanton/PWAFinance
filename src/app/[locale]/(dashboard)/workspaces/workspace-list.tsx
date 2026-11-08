@@ -31,9 +31,9 @@ export function WorkspaceList({ initialWorkspaces, currentUserId }: { initialWor
       <div className="flex justify-end">
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button><Plus className="mr-2 h-4 w-4" /> Novo Workspace</Button>
+            <Button className="w-full sm:w-auto"><Plus className="mr-2 h-4 w-4" /> Novo Workspace</Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="w-[95vw] sm:max-w-[425px]">
             <form action={handleCreate}>
               <DialogHeader>
                 <DialogTitle>Criar Workspace</DialogTitle>
@@ -48,7 +48,7 @@ export function WorkspaceList({ initialWorkspaces, currentUserId }: { initialWor
                 </div>
               </div>
               <DialogFooter>
-                <Button type="submit" disabled={loading}>
+                <Button type="submit" disabled={loading} className="w-full sm:w-auto">
                   {loading ? 'Salvando...' : 'Salvar'}
                 </Button>
               </DialogFooter>
@@ -57,7 +57,31 @@ export function WorkspaceList({ initialWorkspaces, currentUserId }: { initialWor
         </Dialog>
       </div>
 
-      <div className="rounded-md border">
+      {/* Visão Mobile: Cards compactos */}
+      <div className="block md:hidden space-y-2.5">
+        {initialWorkspaces.length === 0 ? (
+          <div className="rounded-lg border bg-card p-8 text-center text-sm text-muted-foreground">
+            Nenhum workspace encontrado. Crie um para começar.
+          </div>
+        ) : (
+          initialWorkspaces.map((workspace) => (
+            <div key={workspace.id} className="rounded-xl border bg-card p-3.5 shadow-xs flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="font-semibold text-sm truncate">{workspace.name}</p>
+                <p className="text-xs text-muted-foreground">Criado em {new Date(workspace.created_at).toLocaleDateString('pt-BR')}</p>
+              </div>
+              {workspace.owner_id === currentUserId && (
+                <Button variant="ghost" size="icon" onClick={() => handleDelete(workspace.id)} className="text-destructive h-9 w-9 shrink-0">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Visão Desktop: Tabela clássica */}
+      <div className="hidden md:block rounded-md border bg-card text-card-foreground shadow-sm">
         <Table>
           <TableHeader>
             <TableRow>

@@ -10,7 +10,7 @@ export default async function SettingsPage() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight">Configurações</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Configurações</h1>
         <p className="text-muted-foreground">
           Gerencie as preferências da sua conta.
         </p>

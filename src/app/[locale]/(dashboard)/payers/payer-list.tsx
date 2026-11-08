@@ -56,16 +56,16 @@ export function PayerList({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex flex-1 items-center space-x-2">
+      <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
+        <div className="flex flex-col sm:flex-row flex-1 items-stretch sm:items-center gap-2">
           <Input 
             placeholder="Buscar pagadores..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="max-w-sm"
+            className="w-full sm:max-w-xs"
           />
           <Select value={selectedWorkspace} onValueChange={setSelectedWorkspace}>
-            <SelectTrigger className="w-[200px]">
+            <SelectTrigger className="w-full sm:w-[200px]">
               <SelectValue placeholder="Workspace" />
             </SelectTrigger>
             <SelectContent>
@@ -79,11 +79,11 @@ export function PayerList({
 
         <Dialog open={open} onOpenChange={(val) => { setOpen(val); if (!val) setEditingPayer(null); }}>
           <DialogTrigger asChild>
-            <Button disabled={workspaces.length === 0} onClick={() => setEditingPayer(null)}>
+            <Button disabled={workspaces.length === 0} onClick={() => setEditingPayer(null)} className="w-full sm:w-auto">
               <Plus className="mr-2 h-4 w-4" /> Novo Pagador
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="w-[95vw] sm:max-w-[425px]">
             <form action={handleSave}>
               <DialogHeader>
                 <DialogTitle>{editingPayer ? 'Editar Pagador' : 'Novo Pagador'}</DialogTitle>
@@ -119,7 +119,37 @@ export function PayerList({
         </Dialog>
       </div>
 
-      <div className="rounded-md border bg-card text-card-foreground shadow-sm">
+      {/* Visão Mobile: Cards compactos */}
+      <div className="block md:hidden space-y-2.5">
+        {filteredPayers.length === 0 ? (
+          <div className="rounded-lg border bg-card p-8 text-center text-sm text-muted-foreground">
+            Nenhum pagador encontrado.
+          </div>
+        ) : (
+          filteredPayers.map((p) => {
+            const ws = workspaces.find(w => w.id === p.workspace_id)
+            return (
+              <div key={p.id} className="rounded-xl border bg-card p-3.5 shadow-xs flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-semibold text-sm truncate">{p.name}</p>
+                  <p className="text-xs text-muted-foreground truncate">{ws?.name || 'Workspace desconhecido'}</p>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <Button variant="ghost" size="icon" onClick={() => handleEdit(p)} className="text-muted-foreground h-9 w-9">
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => handleDelete(p.id)} className="text-destructive h-9 w-9">
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )
+          })
+        )}
+      </div>
+
+      {/* Visão Desktop: Tabela clássica */}
+      <div className="hidden md:block rounded-md border bg-card text-card-foreground shadow-sm">
         <Table>
           <TableHeader>
             <TableRow>
