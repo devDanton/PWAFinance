@@ -12,12 +12,13 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { SubmitButton } from '@/components/ui/submit-button'
+import { useSubscriptions, useCards, useCategories, useWorkspaces, useInvalidateData } from '@/hooks/use-finance-queries'
 
 export function SubscriptionList({ 
   initialSubscriptions, 
-  workspaces, 
-  cards,
-  categories,
+  workspaces: initialWorkspaces, 
+  cards: initialCards,
+  categories: initialCategories,
   transactions
 }: { 
   initialSubscriptions: any[], 
@@ -26,12 +27,18 @@ export function SubscriptionList({
   categories: any[],
   transactions: any[]
 }) {
+  const { data: subscriptions = [] } = useSubscriptions(initialSubscriptions)
+  const { data: workspaces = [] } = useWorkspaces(initialWorkspaces)
+  const { data: cards = [] } = useCards(initialCards)
+  const { data: categories = [] } = useCategories(initialCategories)
+  const { invalidateSubscriptions } = useInvalidateData()
+
   const [open, setOpen] = useState(false)
   const [selectedWorkspace, setSelectedWorkspace] = useState(workspaces[0]?.id || '')
   const [editingSub, setEditingSub] = useState<any>(null)
   const [searchTerm, setSearchTerm] = useState('')
 
-  const filteredSubscriptions = initialSubscriptions.filter((sub) => {
+  const filteredSubscriptions = (subscriptions || []).filter((sub: any) => {
     if (!searchTerm) return true
     const searchLower = searchTerm.toLowerCase()
     return (
@@ -41,8 +48,8 @@ export function SubscriptionList({
     )
   })
 
-  const filteredCards = cards.filter(c => c.workspace_id === selectedWorkspace)
-  const filteredCategories = categories.filter(c => c.workspace_id === selectedWorkspace)
+  const filteredCards = (cards || []).filter((c: any) => c.workspace_id === selectedWorkspace)
+  const filteredCategories = (categories || []).filter((c: any) => c.workspace_id === selectedWorkspace)
 
   async function handleSave(formData: FormData) {
     if (editingSub) {
@@ -50,6 +57,7 @@ export function SubscriptionList({
     } else {
       await createSubscription(formData)
     }
+    invalidateSubscriptions()
     setOpen(false)
     setEditingSub(null)
   }
@@ -63,11 +71,13 @@ export function SubscriptionList({
   async function handleDelete(id: string) {
     if (confirm('Tem certeza que deseja deletar esta assinatura? As transações já geradas não serão afetadas.')) {
       await deleteSubscription(id)
+      invalidateSubscriptions()
     }
   }
 
   async function handleToggleActive(id: string, currentStatus: boolean) {
     await toggleSubscriptionActive(id, !currentStatus)
+    invalidateSubscriptions()
   }
 
   return (

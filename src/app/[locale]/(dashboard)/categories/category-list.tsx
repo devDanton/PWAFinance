@@ -10,20 +10,25 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SubmitButton } from '@/components/ui/submit-button'
+import { useCategories, useWorkspaces, useInvalidateData } from '@/hooks/use-finance-queries'
 
 export function CategoryList({ 
   initialCategories, 
-  workspaces 
+  workspaces: initialWorkspaces 
 }: { 
   initialCategories: any[], 
   workspaces: any[] 
 }) {
+  const { data: categories = [] } = useCategories(initialCategories)
+  const { data: workspaces = [] } = useWorkspaces(initialWorkspaces)
+  const { invalidateCategories } = useInvalidateData()
+
   const [open, setOpen] = useState(false)
   const [selectedWorkspace, setSelectedWorkspace] = useState(workspaces[0]?.id || '')
   const [editingCat, setEditingCat] = useState<any>(null)
   const [searchTerm, setSearchTerm] = useState('')
 
-  const filteredCategories = initialCategories.filter((cat) => {
+  const filteredCategories = (categories || []).filter((cat: any) => {
     if (!searchTerm) return true
     const searchLower = searchTerm.toLowerCase()
     return (
@@ -38,6 +43,7 @@ export function CategoryList({
     } else {
       await createCategory(formData)
     }
+    invalidateCategories()
     setOpen(false)
     setEditingCat(null)
   }
@@ -51,6 +57,7 @@ export function CategoryList({
   async function handleDelete(id: string) {
     if (confirm('Tem certeza que deseja deletar esta categoria? Lançamentos que utilizam essa categoria ficarão "Sem categoria".')) {
       await deleteCategory(id)
+      invalidateCategories()
     }
   }
 

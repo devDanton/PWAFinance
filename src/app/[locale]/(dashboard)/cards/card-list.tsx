@@ -10,6 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SubmitButton } from '@/components/ui/submit-button'
+import { useCards, useInvalidateData, useWorkspaces } from '@/hooks/use-finance-queries'
 
 function getContrastColor(hexColor: string) {
   if (!hexColor) return '#ffffff';
@@ -22,7 +23,11 @@ function getContrastColor(hexColor: string) {
   return (yiq >= 128) ? '#000000' : '#ffffff';
 }
 
-export function CardList({ initialCards, workspaces }: { initialCards: any[], workspaces: any[] }) {
+export function CardList({ initialCards, workspaces: initialWorkspaces }: { initialCards: any[], workspaces: any[] }) {
+  const { data: cards = [] } = useCards(initialCards)
+  const { data: workspaces = [] } = useWorkspaces(initialWorkspaces)
+  const { invalidateCards } = useInvalidateData()
+
   const [open, setOpen] = useState(false)
   const [editingCard, setEditingCard] = useState<any>(null)
 
@@ -32,6 +37,7 @@ export function CardList({ initialCards, workspaces }: { initialCards: any[], wo
     } else {
       await createCard(formData)
     }
+    invalidateCards()
     setOpen(false)
     setEditingCard(null)
   }
@@ -44,6 +50,7 @@ export function CardList({ initialCards, workspaces }: { initialCards: any[], wo
   async function handleDelete(id: string) {
     if (confirm('Tem certeza que deseja deletar este cartão?')) {
       await deleteCard(id)
+      invalidateCards()
     }
   }
 
@@ -112,12 +119,12 @@ export function CardList({ initialCards, workspaces }: { initialCards: any[], wo
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-4">
-        {initialCards.length === 0 ? (
+        {cards.length === 0 ? (
           <div className="col-span-full text-center text-muted-foreground py-12">
             Nenhum cartão cadastrado.
           </div>
         ) : (
-          initialCards.map((card) => {
+          cards.map((card: any) => {
             const formattedLimit = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(card.total_limit)
             const bgColor = card.color || '#000000'
             const textColor = getContrastColor(bgColor)

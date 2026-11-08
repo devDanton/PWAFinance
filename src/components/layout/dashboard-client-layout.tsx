@@ -4,6 +4,8 @@ import React from "react"
 import { SidebarProvider, useSidebar } from "@/components/layout/sidebar-context"
 import { Sidebar } from "@/components/layout/sidebar"
 import { Header } from "@/components/layout/header"
+import { QueryProvider } from "@/components/providers/query-provider"
+import { FilterProvider } from "@/components/providers/filter-context"
 
 function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
   const { desktopCollapsed } = useSidebar()
@@ -36,8 +38,12 @@ function DashboardLayoutContent({ children }: { children: React.ReactNode }) {
 
 export function DashboardClientLayout({ children }: { children: React.ReactNode }) {
   return (
-    <SidebarProvider>
-      <DashboardLayoutContent>{children}</DashboardLayoutContent>
-    </SidebarProvider>
+    <QueryProvider>
+      <FilterProvider>
+        <SidebarProvider>
+          <DashboardLayoutContent>{children}</DashboardLayoutContent>
+        </SidebarProvider>
+      </FilterProvider>
+    </QueryProvider>
   )
 }

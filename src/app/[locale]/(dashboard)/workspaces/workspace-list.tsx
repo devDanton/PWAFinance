@@ -8,14 +8,19 @@ import { Input } from '@/components/ui/input'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import { useWorkspaces, useInvalidateData } from '@/hooks/use-finance-queries'
 
 export function WorkspaceList({ initialWorkspaces, currentUserId }: { initialWorkspaces: any[], currentUserId: string }) {
+  const { data: workspaces = [] } = useWorkspaces(initialWorkspaces)
+  const { invalidateWorkspaces } = useInvalidateData()
+
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
 
   async function handleCreate(formData: FormData) {
     setLoading(true)
     await createWorkspace(formData)
+    invalidateWorkspaces()
     setLoading(false)
     setOpen(false)
   }
@@ -23,6 +28,7 @@ export function WorkspaceList({ initialWorkspaces, currentUserId }: { initialWor
   async function handleDelete(id: string) {
     if (confirm('Tem certeza que deseja deletar este workspace?')) {
       await deleteWorkspace(id)
+      invalidateWorkspaces()
     }
   }
 
@@ -59,12 +65,12 @@ export function WorkspaceList({ initialWorkspaces, currentUserId }: { initialWor
 
       {/* Visão Mobile: Cards compactos */}
       <div className="block md:hidden space-y-2.5">
-        {initialWorkspaces.length === 0 ? (
+        {(workspaces || []).length === 0 ? (
           <div className="rounded-lg border bg-card p-8 text-center text-sm text-muted-foreground">
             Nenhum workspace encontrado. Crie um para começar.
           </div>
         ) : (
-          initialWorkspaces.map((workspace) => (
+          (workspaces || []).map((workspace: any) => (
             <div key={workspace.id} className="rounded-xl border bg-card p-3.5 shadow-xs flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <p className="font-semibold text-sm truncate">{workspace.name}</p>
@@ -91,14 +97,14 @@ export function WorkspaceList({ initialWorkspaces, currentUserId }: { initialWor
             </TableRow>
           </TableHeader>
           <TableBody>
-            {initialWorkspaces.length === 0 ? (
+            {(workspaces || []).length === 0 ? (
               <TableRow>
                 <TableCell colSpan={3} className="text-center text-muted-foreground h-24">
                   Nenhum workspace encontrado. Crie um para começar.
                 </TableCell>
               </TableRow>
             ) : (
-              initialWorkspaces.map((workspace) => (
+              (workspaces || []).map((workspace: any) => (
                 <TableRow key={workspace.id}>
                   <TableCell className="font-medium">{workspace.name}</TableCell>
                   <TableCell>{new Date(workspace.created_at).toLocaleDateString('pt-BR')}</TableCell>

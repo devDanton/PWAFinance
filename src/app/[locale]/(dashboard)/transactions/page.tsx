@@ -15,21 +15,6 @@ export default async function TransactionsPage({ searchParams }: TransactionsPag
   const supabase = await createClient()
   const resolvedParams = await searchParams
 
-  const { data: { user } } = await supabase.auth.getUser()
-
-  const { data: workspaces } = await supabase.from('workspaces').select('id, name')
-  const { data: cards } = await supabase.from('credit_cards').select('id, name, workspace_id, color, total_limit, due_day, closing_day')
-  const { data: categories } = await supabase.from('categories').select('id, name, workspace_id, color')
-  const { data: payers } = await supabase.from('payers').select('id, name, workspace_id')
-  const { data: profile } = await supabase.from('profiles').select('transaction_sort_preference').eq('id', user?.id).single()
-
-  const sortPref = profile?.transaction_sort_preference || 'date:desc'
-  const [sortField, sortDir] = sortPref.split(':')
-
-  // Prevent Postgrest error if sortField is a relationship (like 'categories')
-  const validSortColumns = ['date', 'due_date', 'amount', 'description', 'created_at', 'type', 'is_paid']
-  const safeSortField = validSortColumns.includes(sortField) ? sortField : 'date'
-
   // Período padrão: mês atual
   const now = new Date()
   const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -47,8 +32,6 @@ export default async function TransactionsPage({ searchParams }: TransactionsPag
     const [yearStr, monthStr] = selectedMonth.split('-')
     const year = parseInt(yearStr, 10)
     const month = parseInt(monthStr, 10)
-    
-    // Início e fim do mês
     const startOfMonth = `${yearStr}-${monthStr.padStart(2, '0')}-01`
     const lastDay = new Date(year, month, 0).getDate()
     const endOfMonth = `${yearStr}-${monthStr.padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`
@@ -64,31 +47,46 @@ export default async function TransactionsPage({ searchParams }: TransactionsPag
       query = query.lte(targetDateField, resolvedParams.endDate)
     }
   }
-  // Se periodMode === 'all', não filtra por data no Supabase
 
-  const { data: transactions } = await query.order(safeSortField, { ascending: sortDir === 'asc' })
+  // Executa todas as queries iniciais em PARALELO (elimina waterfall sequencial)
+  const [
+    userRes,
+    workspacesRes,
+    cardsRes,
+    categoriesRes,
+    payersRes,
+    txsRes,
+    splitsRes
+  ] = await Promise.all([
+    supabase.auth.getUser(),
+    supabase.from('workspaces').select('id, name'),
+    supabase.from('credit_cards').select('id, name, workspace_id, color, total_limit, due_day, closing_day'),
+    supabase.from('categories').select('id, name, workspace_id, color'),
+    supabase.from('payers').select('id, name, workspace_id'),
+    query.order('date', { ascending: false }),
+    supabase.from('transaction_splits').select('transaction_id')
+  ])
 
-  // Query transaction splits to identify transactions that have splits
+  const user = userRes.data?.user
+  const workspaces = workspacesRes.data || []
+  const cards = cardsRes.data || []
+  const categories = categoriesRes.data || []
+  const payers = payersRes.data || []
+  const transactions = txsRes.data || []
+  const splitsData = splitsRes.data || []
+
   const splitCountsByTxId: Record<string, number> = {}
-  try {
-    const { data: splitsData } = await supabase
-      .from('transaction_splits')
-      .select('transaction_id')
+  splitsData.forEach((s: { transaction_id: string }) => {
+    splitCountsByTxId[s.transaction_id] = (splitCountsByTxId[s.transaction_id] || 0) + 1
+  })
 
-    if (splitsData) {
-      splitsData.forEach((s: { transaction_id: string }) => {
-        splitCountsByTxId[s.transaction_id] = (splitCountsByTxId[s.transaction_id] || 0) + 1
-      })
-    }
-  } catch (err) {
-    console.warn('Tabela transaction_splits ainda não foi criada no banco de dados:', err)
-  }
-
-  const transactionsWithSplits = (transactions || []).map((tx) => ({
+  const transactionsWithSplits = transactions.map((tx) => ({
     ...tx,
     has_splits: Boolean(splitCountsByTxId[tx.id] && splitCountsByTxId[tx.id] > 0),
     splits_count: splitCountsByTxId[tx.id] || 0
   }))
+
+  const sortPref = 'date:desc'
 
   const todayDate = new Date().toISOString().split('T')[0]
 

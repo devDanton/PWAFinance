@@ -21,13 +21,15 @@ import { ImportCsvModal } from './import-csv-modal'
 import { BulkActionsBar } from './bulk-actions-bar'
 import { downloadTransactionTemplateCsv } from '@/lib/csv-template'
 import { SplitTransactionModal, TransactionToSplit } from './split-transaction-modal'
+import { useTransactions, useCards, useCategories, usePayers, useWorkspaces, useInvalidateData } from '@/hooks/use-finance-queries'
+import { useTransactionFilters } from '@/components/providers/filter-context'
 
 export function TransactionList({ 
   initialTransactions, 
-  workspaces, 
-  cards,
-  categories,
-  payers,
+  workspaces: initialWorkspaces, 
+  cards: initialCards,
+  categories: initialCategories,
+  payers: initialPayers,
   initialSortPreference = 'date:desc',
   todayDate,
   currentPeriodMode = 'month',
@@ -54,7 +56,7 @@ export function TransactionList({
   const searchParams = useSearchParams()
   const [isPending, startTransition] = useTransition()
 
-  // Estado do filtro por servidor (Supabase)
+  // Estado do filtro de período
   const [serverPeriodMode, setServerPeriodMode] = useState<'month' | 'custom' | 'all'>(
     (currentPeriodMode as 'month' | 'custom' | 'all') || 'month'
   )
@@ -66,6 +68,19 @@ export function TransactionList({
   )
   const [customRangeStart, setCustomRangeStart] = useState<string>(currentStartDate)
   const [customRangeEnd, setCustomRangeEnd] = useState<string>(currentEndDate)
+
+  // Chave de período do cache
+  const periodKey = serverPeriodMode === 'month' 
+    ? `month:${serverMonth}:${serverDateField}`
+    : (serverPeriodMode === 'custom' ? `custom:${customRangeStart}:${customRangeEnd}:${serverDateField}` : `all:${serverDateField}`)
+
+  // Hooks TanStack Query com cache Stale-While-Revalidate
+  const { data: transactions = [] } = useTransactions(periodKey, initialTransactions)
+  const { data: workspaces = [] } = useWorkspaces(initialWorkspaces)
+  const { data: cards = [] } = useCards(initialCards)
+  const { data: categories = [] } = useCategories(initialCategories)
+  const { data: payers = [] } = usePayers(initialPayers)
+  const { invalidateTransactions } = useInvalidateData()
 
   function updateServerPeriod(mode: 'month' | 'custom' | 'all', newMonth?: string, start?: string, end?: string, field?: 'date' | 'due_date') {
     const params = new URLSearchParams(searchParams.toString())
@@ -127,19 +142,35 @@ export function TransactionList({
   const [deletingTx, setDeletingTx] = useState<any>(null)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   
-  // Filters
-  const [searchTerm, setSearchTerm] = useState('')
-  const [filterType, setFilterType] = useState<string>('all')
-  const [filterPaidStatus, setFilterPaidStatus] = useState<'all' | 'paid' | 'pending'>('all')
-  const [filterCard, setFilterCard] = useState<string>('all')
-  const [minAmount, setMinAmount] = useState<string>('')
-  const [maxAmount, setMaxAmount] = useState<string>('')
-  const [startDate, setStartDate] = useState<string>('')
-  const [endDate, setEndDate] = useState<string>('')
-  const [dueStartDate, setDueStartDate] = useState<string>('')
-  const [dueEndDate, setDueEndDate] = useState<string>('')
-  const [filterPayer, setFilterPayer] = useState<string>('all')
-  const [filterCategory, setFilterCategory] = useState<string>('all')
+  // Filters compartilhados via Context (permanecem salvos na troca de abas)
+  const { filters, setFilters, resetFilters } = useTransactionFilters()
+
+  const searchTerm = filters.searchTerm
+  const filterType = filters.filterType
+  const filterPaidStatus = filters.filterPaidStatus
+  const filterCard = filters.filterCard
+  const minAmount = filters.minAmount
+  const maxAmount = filters.maxAmount
+  const startDate = filters.startDate
+  const endDate = filters.endDate
+  const dueStartDate = filters.dueStartDate
+  const dueEndDate = filters.dueEndDate
+  const filterPayer = filters.filterPayer
+  const filterCategory = filters.filterCategory
+
+  const setSearchTerm = (val: string) => setFilters(prev => ({ ...prev, searchTerm: val }))
+  const setFilterType = (val: string) => setFilters(prev => ({ ...prev, filterType: val }))
+  const setFilterPaidStatus = (val: 'all' | 'paid' | 'pending') => setFilters(prev => ({ ...prev, filterPaidStatus: val }))
+  const setFilterCard = (val: string) => setFilters(prev => ({ ...prev, filterCard: val }))
+  const setMinAmount = (val: string) => setFilters(prev => ({ ...prev, minAmount: val }))
+  const setMaxAmount = (val: string) => setFilters(prev => ({ ...prev, maxAmount: val }))
+  const setStartDate = (val: string) => setFilters(prev => ({ ...prev, startDate: val }))
+  const setEndDate = (val: string) => setFilters(prev => ({ ...prev, endDate: val }))
+  const setDueStartDate = (val: string) => setFilters(prev => ({ ...prev, dueStartDate: val }))
+  const setDueEndDate = (val: string) => setFilters(prev => ({ ...prev, dueEndDate: val }))
+  const setFilterPayer = (val: string) => setFilters(prev => ({ ...prev, filterPayer: val }))
+  const setFilterCategory = (val: string) => setFilters(prev => ({ ...prev, filterCategory: val }))
+
   const [quickPeriodTarget, setQuickPeriodTarget] = useState<'date' | 'due_date'>('date')
 
   // Sorting
@@ -174,11 +205,11 @@ export function TransactionList({
 
   // Filtro de cartões em memória pura (evita re-render de toda a árvore)
   const handleSelectCard = (cardId: string) => {
-    setFilterCard((prev) => (prev === cardId ? 'all' : cardId))
+    setFilterCard(filterCard === cardId ? 'all' : cardId)
   }
 
   // Client-side filtering & sorting
-  let filteredTransactions = [...initialTransactions]
+  let filteredTransactions = [...(transactions || [])]
 
   // Apply filters
   filteredTransactions = filteredTransactions.filter((tx) => {
@@ -322,6 +353,7 @@ export function TransactionList({
         await createTransaction(formData)
       }
     }
+    invalidateTransactions()
     
     setOpen(false)
     setEditingTx(null)
@@ -358,11 +390,13 @@ export function TransactionList({
 
   async function handleDelete(id: string, deleteAll: boolean) {
     await deleteTransaction(id, deleteAll)
+    invalidateTransactions()
     setDeletingTx(null)
   }
 
   async function handleTogglePaid(id: string, currentStatus: boolean) {
     await toggleTransactionPaid(id, !currentStatus)
+    invalidateTransactions()
   }
 
   // Calculate totals for filtered transactions
@@ -792,12 +826,7 @@ export function TransactionList({
                       <Input type="date" value={dueEndDate} onChange={e => setDueEndDate(e.target.value)} />
                     </div>
                   </div>
-                  <Button variant="ghost" size="sm" onClick={() => {
-                    setFilterType('all'); setFilterPaidStatus('all'); setFilterCategory('all'); setFilterPayer('all'); setFilterCard('all');
-                    setMinAmount(''); setMaxAmount(''); 
-                    setStartDate(''); setEndDate('');
-                    setDueStartDate(''); setDueEndDate('');
-                  }}>
+                  <Button variant="ghost" size="sm" onClick={() => resetFilters()}>
                     Limpar Filtros
                   </Button>
                 </div>

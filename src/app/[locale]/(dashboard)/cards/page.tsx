@@ -4,23 +4,16 @@ import { CardList } from './card-list'
 export default async function CardsPage() {
   const supabase = await createClient()
 
-  // For this view, we need to fetch all cards belonging to the workspaces the user is in.
-  const { data: cards, error: cardsError } = await supabase
-    .from('credit_cards')
-    .select('*, workspaces(name)')
-    .order('created_at', { ascending: false })
+  // Busca em paralelo para eliminar waterfall no servidor
+  const [cardsRes, workspacesRes, txsRes] = await Promise.all([
+    supabase.from('credit_cards').select('*, workspaces(name)').order('created_at', { ascending: false }),
+    supabase.from('workspaces').select('id, name'),
+    supabase.from('transactions').select('amount, credit_card_id').not('credit_card_id', 'is', null).eq('is_paid', false)
+  ])
 
-  const { data: workspaces, error: workspacesError } = await supabase
-    .from('workspaces')
-    .select('id, name')
-
-  const { data: transactions } = await supabase
-    .from('transactions')
-    .select('amount, credit_card_id')
-    .not('credit_card_id', 'is', null)
-    .eq('is_paid', false)
-
-  const txs = transactions || []
+  const cards = cardsRes.data || []
+  const workspaces = workspacesRes.data || []
+  const txs = txsRes.data || []
 
   const cardsWithLimits = (cards || []).map(card => {
     const used = txs

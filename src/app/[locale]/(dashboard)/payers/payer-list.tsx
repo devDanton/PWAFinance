@@ -10,21 +10,26 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { SubmitButton } from '@/components/ui/submit-button'
+import { usePayers, useWorkspaces, useInvalidateData } from '@/hooks/use-finance-queries'
 
 export function PayerList({ 
   initialPayers, 
-  workspaces 
+  workspaces: initialWorkspaces 
 }: { 
   initialPayers: any[], 
   workspaces: any[] 
 }) {
+  const { data: payers = [] } = usePayers(initialPayers)
+  const { data: workspaces = [] } = useWorkspaces(initialWorkspaces)
+  const { invalidatePayers } = useInvalidateData()
+
   const [open, setOpen] = useState(false)
   const [selectedWorkspace, setSelectedWorkspace] = useState(workspaces.length > 0 ? workspaces[0].id : 'all')
   const [editingPayer, setEditingPayer] = useState<any>(null)
   
   const [searchTerm, setSearchTerm] = useState('')
 
-  const filteredPayers = initialPayers.filter((p) => {
+  const filteredPayers = (payers || []).filter((p: any) => {
     if (selectedWorkspace && selectedWorkspace !== 'all' && p.workspace_id !== selectedWorkspace) return false
     if (searchTerm) {
       if (!p.name.toLowerCase().includes(searchTerm.toLowerCase())) return false
@@ -38,6 +43,7 @@ export function PayerList({
     } else {
       await createPayer(formData)
     }
+    invalidatePayers()
     setOpen(false)
     setEditingPayer(null)
   }
@@ -51,6 +57,7 @@ export function PayerList({
   async function handleDelete(id: string) {
     if (confirm('Tem certeza que deseja deletar este pagador? O vínculo com as transações será removido.')) {
       await deletePayer(id)
+      invalidatePayers()
     }
   }
 
@@ -121,12 +128,12 @@ export function PayerList({
 
       {/* Visão Mobile: Cards compactos */}
       <div className="block md:hidden space-y-2.5">
-        {filteredPayers.length === 0 ? (
+        {(filteredPayers || []).length === 0 ? (
           <div className="rounded-lg border bg-card p-8 text-center text-sm text-muted-foreground">
             Nenhum pagador encontrado.
           </div>
         ) : (
-          filteredPayers.map((p) => {
+          (filteredPayers || []).map((p: any) => {
             const ws = workspaces.find(w => w.id === p.workspace_id)
             return (
               <div key={p.id} className="rounded-xl border bg-card p-3.5 shadow-xs flex items-center justify-between gap-3">
@@ -159,14 +166,14 @@ export function PayerList({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredPayers.length === 0 ? (
+            {(filteredPayers || []).length === 0 ? (
               <TableRow>
                 <TableCell colSpan={3} className="text-center text-muted-foreground h-24">
                   Nenhum pagador encontrado.
                 </TableCell>
               </TableRow>
             ) : (
-              filteredPayers.map((p) => {
+              (filteredPayers || []).map((p: any) => {
                 const ws = workspaces.find(w => w.id === p.workspace_id)
                 return (
                   <TableRow key={p.id}>
