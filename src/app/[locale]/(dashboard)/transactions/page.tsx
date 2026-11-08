@@ -63,7 +63,7 @@ export default async function TransactionsPage({ searchParams }: TransactionsPag
     supabase.from('credit_cards').select('id, name, workspace_id, color, total_limit, due_day, closing_day'),
     supabase.from('categories').select('id, name, workspace_id, color'),
     supabase.from('payers').select('id, name, workspace_id'),
-    query.order('date', { ascending: false }),
+    query.order('due_date', { ascending: true }),
     supabase.from('transaction_splits').select('transaction_id')
   ])
 
@@ -86,7 +86,7 @@ export default async function TransactionsPage({ searchParams }: TransactionsPag
     splits_count: splitCountsByTxId[tx.id] || 0
   }))
 
-  const sortPref = 'date:desc'
+  const sortPref = 'due_date:asc'
 
   const todayDate = new Date().toISOString().split('T')[0]
 

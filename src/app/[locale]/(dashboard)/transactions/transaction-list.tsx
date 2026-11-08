@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useTransition } from 'react'
+import { useState, useTransition, useMemo, useCallback } from 'react'
 import { Plus, Trash2, ArrowDownCircle, ArrowUpCircle, Pencil, Copy, ArrowUpDown, ArrowUp, ArrowDown, Filter, Download, Split, ChevronLeft, ChevronRight, Calendar, Loader2, CreditCard, ChevronDown, SlidersHorizontal, X } from 'lucide-react'
 import { format } from 'date-fns'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
@@ -21,6 +21,8 @@ import { ImportCsvModal } from './import-csv-modal'
 import { BulkActionsBar } from './bulk-actions-bar'
 import { downloadTransactionTemplateCsv } from '@/lib/csv-template'
 import { SplitTransactionModal, TransactionToSplit } from './split-transaction-modal'
+import { DesktopTransactionRow } from './desktop-transaction-row'
+import { MobileTransactionCard } from './mobile-transaction-card'
 import { useTransactions, useCards, useCategories, usePayers, useWorkspaces, useInvalidateData } from '@/hooks/use-finance-queries'
 import { useTransactionFilters } from '@/components/providers/filter-context'
 
@@ -30,7 +32,7 @@ export function TransactionList({
   cards: initialCards,
   categories: initialCategories,
   payers: initialPayers,
-  initialSortPreference = 'date:desc',
+  initialSortPreference = 'due_date:asc',
   todayDate,
   currentPeriodMode = 'month',
   currentSelectedMonth,
@@ -56,16 +58,10 @@ export function TransactionList({
   const searchParams = useSearchParams()
   const [isPending, startTransition] = useTransition()
 
-  // Estado do filtro de período
-  const [serverPeriodMode, setServerPeriodMode] = useState<'month' | 'custom' | 'all'>(
-    (currentPeriodMode as 'month' | 'custom' | 'all') || 'month'
-  )
-  const [serverMonth, setServerMonth] = useState<string>(
-    currentSelectedMonth || todayDate.slice(0, 7)
-  )
-  const [serverDateField, setServerDateField] = useState<'date' | 'due_date'>(
-    (currentDateField as 'date' | 'due_date') || 'due_date'
-  )
+  // Sincroniza o estado do período quando a URL muda (SSR)
+  const serverPeriodMode = (currentPeriodMode as 'month' | 'custom' | 'all') || 'month'
+  const serverMonth = currentSelectedMonth || todayDate.slice(0, 7)
+  const serverDateField = (currentDateField as 'date' | 'due_date') || 'due_date'
   const [customRangeStart, setCustomRangeStart] = useState<string>(currentStartDate)
   const [customRangeEnd, setCustomRangeEnd] = useState<string>(currentEndDate)
 
@@ -114,8 +110,6 @@ export function TransactionList({
     const [y, m] = serverMonth.split('-').map(Number)
     const prevDate = new Date(y, m - 2, 1)
     const nextStr = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`
-    setServerMonth(nextStr)
-    setServerPeriodMode('month')
     updateServerPeriod('month', nextStr)
   }
 
@@ -123,15 +117,11 @@ export function TransactionList({
     const [y, m] = serverMonth.split('-').map(Number)
     const nextDate = new Date(y, m, 1)
     const nextStr = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`
-    setServerMonth(nextStr)
-    setServerPeriodMode('month')
     updateServerPeriod('month', nextStr)
   }
 
   function handleCurrentMonth() {
     const currentStr = todayDate.slice(0, 7)
-    setServerMonth(currentStr)
-    setServerPeriodMode('month')
     updateServerPeriod('month', currentStr)
   }
 
@@ -148,7 +138,7 @@ export function TransactionList({
   const searchTerm = filters.searchTerm
   const filterType = filters.filterType
   const filterPaidStatus = filters.filterPaidStatus
-  const filterCard = filters.filterCard
+  const selectedCardIds = filters.selectedCardIds || []
   const minAmount = filters.minAmount
   const maxAmount = filters.maxAmount
   const startDate = filters.startDate
@@ -157,11 +147,19 @@ export function TransactionList({
   const dueEndDate = filters.dueEndDate
   const filterPayer = filters.filterPayer
   const filterCategory = filters.filterCategory
+  const sortPref = filters.sortPref || initialSortPreference
+  const [sortField, sortDir] = sortPref.split(':')
 
   const setSearchTerm = (val: string) => setFilters(prev => ({ ...prev, searchTerm: val }))
+  const setSortPref = (val: string) => setFilters(prev => ({ ...prev, sortPref: val }))
   const setFilterType = (val: string) => setFilters(prev => ({ ...prev, filterType: val }))
   const setFilterPaidStatus = (val: 'all' | 'paid' | 'pending') => setFilters(prev => ({ ...prev, filterPaidStatus: val }))
-  const setFilterCard = (val: string) => setFilters(prev => ({ ...prev, filterCard: val }))
+  const setSelectedCardIds = (updater: string[] | ((prev: string[]) => string[])) => {
+    setFilters(prev => ({
+      ...prev,
+      selectedCardIds: typeof updater === 'function' ? updater(prev.selectedCardIds || []) : updater
+    }))
+  }
   const setMinAmount = (val: string) => setFilters(prev => ({ ...prev, minAmount: val }))
   const setMaxAmount = (val: string) => setFilters(prev => ({ ...prev, maxAmount: val }))
   const setStartDate = (val: string) => setFilters(prev => ({ ...prev, startDate: val }))
@@ -172,10 +170,6 @@ export function TransactionList({
   const setFilterCategory = (val: string) => setFilters(prev => ({ ...prev, filterCategory: val }))
 
   const [quickPeriodTarget, setQuickPeriodTarget] = useState<'date' | 'due_date'>('date')
-
-  // Sorting
-  const [sortPref, setSortPref] = useState(initialSortPreference)
-  const [sortField, sortDir] = sortPref.split(':')
 
   // Recurrence UI state
   const [isRecurring, setIsRecurring] = useState(false)
@@ -188,7 +182,7 @@ export function TransactionList({
     Boolean(searchTerm),
     filterPaidStatus !== 'all',
     filterType !== 'all',
-    filterCard !== 'all',
+    selectedCardIds.length > 0,
     filterCategory !== 'all',
     filterPayer !== 'all',
     Boolean(minAmount),
@@ -203,111 +197,127 @@ export function TransactionList({
   const [splittingTx, setSplittingTx] = useState<TransactionToSplit | null>(null)
   const [localSplitOverrides, setLocalSplitOverrides] = useState<Record<string, boolean>>({})
 
-  // Filtro de cartões em memória pura (evita re-render de toda a árvore)
-  const handleSelectCard = (cardId: string) => {
-    setFilterCard(filterCard === cardId ? 'all' : cardId)
+  // Toggle de seleção múltipla de cartões de crédito
+  const handleToggleCard = (cardId: string) => {
+    setSelectedCardIds(prev => {
+      if (prev.includes(cardId)) {
+        return prev.filter(id => id !== cardId)
+      } else {
+        return [...prev, cardId]
+      }
+    })
   }
 
-  // Client-side filtering & sorting
-  let filteredTransactions = [...(transactions || [])]
+  const handleSelectAllCards = () => {
+    setSelectedCardIds([])
+  }
 
-  // Apply filters
-  filteredTransactions = filteredTransactions.filter((tx) => {
-    // Text search
-    if (searchTerm) {
-      const searchLower = searchTerm.toLowerCase()
-      const matchText = (
-        (tx.description?.toLowerCase() || '').includes(searchLower) ||
-        (tx.categories?.name?.toLowerCase() || '').includes(searchLower) ||
-        (tx.workspaces?.name?.toLowerCase() || '').includes(searchLower) ||
-        (tx.credit_cards?.name?.toLowerCase() || '').includes(searchLower) ||
-        (tx.payers?.name?.toLowerCase() || '').includes(searchLower)
-      )
-      if (!matchText) return false
-    }
+  // Pre-processamento e filtragem memoizada para alta performance no cliente
+  const filteredTransactions = useMemo(() => {
+    if (!transactions || transactions.length === 0) return []
 
-    if (filterType !== 'all' && tx.type !== filterType) return false
-    if (filterPaidStatus === 'paid' && !tx.is_paid) return false
-    if (filterPaidStatus === 'pending' && tx.is_paid) return false
-    if (filterCard !== 'all' && tx.credit_card_id !== filterCard) return false
-    if (filterPayer !== 'all' && tx.payer_id !== filterPayer) return false
-    if (filterCategory !== 'all' && tx.category_id !== filterCategory) return false
-    
-    if (minAmount && tx.amount < parseFloat(minAmount)) return false
-    if (maxAmount && tx.amount > parseFloat(maxAmount)) return false
+    const searchLower = searchTerm ? searchTerm.toLowerCase().trim() : ''
+    const minNum = minAmount ? parseFloat(minAmount) : null
+    const maxNum = maxAmount ? parseFloat(maxAmount) : null
+    const hasCardFilter = selectedCardIds.length > 0
+    const cardSet = hasCardFilter ? new Set(selectedCardIds) : null
 
-    if (startDate && tx.date < startDate) return false
-    if (endDate && tx.date > endDate) return false
-    
-    // Some transactions might not have due_date, fallback to date
-    const txDueDate = tx.due_date || tx.date
-    if (dueStartDate && txDueDate < dueStartDate) return false
-    if (dueEndDate && txDueDate > dueEndDate) return false
-
-    return true
-  })
-
-  // Apply sorting (server already sorted initially, but client needs to handle changes)
-  filteredTransactions.sort((a, b) => {
-    // 1. Tratamento para ordenação por data (compra ou vencimento) como Date real
-    if (sortField === 'date' || sortField === 'due_date') {
-      const getTimestamp = (tx: Record<string, unknown>, field: string) => {
-        const raw = (field === 'due_date' ? (tx.due_date || tx.date) : (tx.date || tx.due_date)) as string | undefined
-        if (!raw) return 0
-        const dateStr = String(raw).trim()
-        const match = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})/)
-        if (match) {
-          const year = parseInt(match[1], 10)
-          const month = parseInt(match[2], 10) - 1
-          const day = parseInt(match[3], 10)
-          return Date.UTC(year, month, day)
-        }
-        const parsed = new Date(dateStr)
-        const t = parsed.getTime()
-        return isNaN(t) ? 0 : t
+    // 1. Filtragem eficiente
+    const result = transactions.filter((tx: any) => {
+      // Text search
+      if (searchLower) {
+        const matchText = (
+          (tx.description && tx.description.toLowerCase().includes(searchLower)) ||
+          (tx.categories?.name && tx.categories.name.toLowerCase().includes(searchLower)) ||
+          (tx.workspaces?.name && tx.workspaces.name.toLowerCase().includes(searchLower)) ||
+          (tx.credit_cards?.name && tx.credit_cards.name.toLowerCase().includes(searchLower)) ||
+          (tx.payers?.name && tx.payers.name.toLowerCase().includes(searchLower))
+        )
+        if (!matchText) return false
       }
 
-      const timeA = getTimestamp(a, sortField)
-      const timeB = getTimestamp(b, sortField)
-      return sortDir === 'asc' ? timeA - timeB : timeB - timeA
-    }
+      if (filterType !== 'all' && tx.type !== filterType) return false
+      if (filterPaidStatus === 'paid' && !tx.is_paid) return false
+      if (filterPaidStatus === 'pending' && tx.is_paid) return false
+      if (cardSet && !cardSet.has(tx.credit_card_id)) return false
+      if (filterPayer !== 'all' && tx.payer_id !== filterPayer) return false
+      if (filterCategory !== 'all' && tx.category_id !== filterCategory) return false
+      
+      if (minNum !== null && tx.amount < minNum) return false
+      if (maxNum !== null && tx.amount > maxNum) return false
 
-    // 2. Tratamento para valor numérico (amount)
-    if (sortField === 'amount') {
-      const numA = Number(a.amount) || 0
-      const numB = Number(b.amount) || 0
-      return sortDir === 'asc' ? numA - numB : numB - numA
-    }
+      if (startDate && tx.date < startDate) return false
+      if (endDate && tx.date > endDate) return false
+      
+      const txDueDate = tx.due_date || tx.date
+      if (dueStartDate && txDueDate < dueStartDate) return false
+      if (dueEndDate && txDueDate > dueEndDate) return false
 
-    // 3. Tratamento para status de pagamento (is_paid)
-    if (sortField === 'is_paid') {
-      const boolA = a.is_paid ? 1 : 0
-      const boolB = b.is_paid ? 1 : 0
-      return sortDir === 'asc' ? boolA - boolB : boolB - boolA
-    }
+      return true
+    })
 
-    // 4. Tratamento para relacionamentos e strings
-    let valA = a[sortField]
-    let valB = b[sortField]
+    // 2. Ordenação eficiente sem regex nem Date parsing repetitivo no comparador
+    result.sort((a: any, b: any) => {
+      if (sortField === 'date' || sortField === 'due_date') {
+        const dateA = sortField === 'due_date' ? (a.due_date || a.date || '') : (a.date || a.due_date || '')
+        const dateB = sortField === 'due_date' ? (b.due_date || b.date || '') : (b.date || b.due_date || '')
+        if (dateA === dateB) return 0
+        const cmp = dateA < dateB ? -1 : 1
+        return sortDir === 'asc' ? cmp : -cmp
+      }
 
-    if (sortField === 'categories') {
-      valA = a.categories?.name || ''
-      valB = b.categories?.name || ''
-    } else if (sortField === 'description') {
-      valA = a.description || ''
-      valB = b.description || ''
-    }
+      if (sortField === 'amount') {
+        const numA = Number(a.amount) || 0
+        const numB = Number(b.amount) || 0
+        return sortDir === 'asc' ? numA - numB : numB - numA
+      }
 
-    const strA = String(valA || '').toLowerCase()
-    const strB = String(valB || '').toLowerCase()
-    return sortDir === 'asc' 
-      ? strA.localeCompare(strB, 'pt-BR') 
-      : strB.localeCompare(strA, 'pt-BR')
-  })
+      if (sortField === 'is_paid') {
+        const boolA = a.is_paid ? 1 : 0
+        const boolB = b.is_paid ? 1 : 0
+        return sortDir === 'asc' ? boolA - boolB : boolB - boolA
+      }
 
-  const filteredCards = cards.filter(c => c.workspace_id === selectedWorkspace)
-  const filteredCategories = categories.filter(c => c.workspace_id === selectedWorkspace)
-  const filteredPayers = payers.filter(c => c.workspace_id === selectedWorkspace)
+      let valA = a[sortField]
+      let valB = b[sortField]
+
+      if (sortField === 'categories') {
+        valA = a.categories?.name || ''
+        valB = b.categories?.name || ''
+      } else if (sortField === 'description') {
+        valA = a.description || ''
+        valB = b.description || ''
+      }
+
+      const strA = String(valA || '').toLowerCase()
+      const strB = String(valB || '').toLowerCase()
+      return sortDir === 'asc' 
+        ? strA.localeCompare(strB, 'pt-BR') 
+        : strB.localeCompare(strA, 'pt-BR')
+    })
+
+    return result
+  }, [
+    transactions,
+    searchTerm,
+    filterType,
+    filterPaidStatus,
+    selectedCardIds,
+    filterPayer,
+    filterCategory,
+    minAmount,
+    maxAmount,
+    startDate,
+    endDate,
+    dueStartDate,
+    dueEndDate,
+    sortField,
+    sortDir
+  ])
+
+  const filteredCards = useMemo(() => cards.filter(c => c.workspace_id === selectedWorkspace), [cards, selectedWorkspace])
+  const filteredCategories = useMemo(() => categories.filter(c => c.workspace_id === selectedWorkspace), [categories, selectedWorkspace])
+  const filteredPayers = useMemo(() => payers.filter(c => c.workspace_id === selectedWorkspace), [payers, selectedWorkspace])
 
   const handleSort = (field: string) => {
     if (sortField === field) {
@@ -333,14 +343,6 @@ export function TransactionList({
     }
   }
 
-  const handleSelectRow = (id: string, checked: boolean) => {
-    if (checked) {
-      setSelectedIds(prev => [...prev, id])
-    } else {
-      setSelectedIds(prev => prev.filter(rowId => rowId !== id))
-    }
-  }
-
   async function handleSave(formData: FormData) {
     const isRec = formData.get('is_recurring') === 'on'
     
@@ -361,23 +363,32 @@ export function TransactionList({
     setIsRecurring(false)
   }
 
-  function handleEdit(tx: any) {
+  // Callbacks memoizados para evitar re-renderizar todas as linhas ao mudar filtros
+  const handleSelectRow = useCallback((id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedIds(prev => [...prev, id])
+    } else {
+      setSelectedIds(prev => prev.filter(rowId => rowId !== id))
+    }
+  }, [])
+
+  const handleEdit = useCallback((tx: any) => {
     setEditingTx(tx)
     setIsCloning(false)
     setSelectedWorkspace(tx.workspace_id)
     setIsRecurring(false)
     setOpen(true)
-  }
+  }, [])
 
-  function handleClone(tx: any) {
+  const handleClone = useCallback((tx: any) => {
     setEditingTx(tx)
     setIsCloning(true)
     setSelectedWorkspace(tx.workspace_id)
     setIsRecurring(false)
     setOpen(true)
-  }
+  }, [])
 
-  function confirmDelete(tx: any) {
+  const confirmDelete = useCallback((tx: any) => {
     const isInstallment = /\(\d+\/\d+\)$/.test(tx.description)
     if (isInstallment) {
       setDeletingTx(tx)
@@ -386,29 +397,40 @@ export function TransactionList({
         handleDelete(tx.id, false)
       }
     }
-  }
+  }, [])
 
-  async function handleDelete(id: string, deleteAll: boolean) {
+  const handleDelete = useCallback(async (id: string, deleteAll: boolean) => {
     await deleteTransaction(id, deleteAll)
     invalidateTransactions()
     setDeletingTx(null)
-  }
+  }, [invalidateTransactions])
 
-  async function handleTogglePaid(id: string, currentStatus: boolean) {
+  const handleTogglePaid = useCallback(async (id: string, currentStatus: boolean) => {
     await toggleTransactionPaid(id, !currentStatus)
     invalidateTransactions()
-  }
+  }, [invalidateTransactions])
 
-  // Calculate totals for filtered transactions
-  const totalIncome = filteredTransactions
-    .filter(t => t.type === 'income')
-    .reduce((acc, t) => acc + t.amount, 0)
-  
-  const totalExpense = filteredTransactions
-    .filter(t => t.type === 'expense')
-    .reduce((acc, t) => acc + t.amount, 0)
-    
-  const totalBalance = totalIncome - totalExpense
+  const handleOpenSplit = useCallback((tx: any) => {
+    setSplittingTx(tx)
+  }, [])
+
+  // Calculate totals for filtered transactions memoizados
+  const { totalIncome, totalExpense, totalBalance } = useMemo(() => {
+    let income = 0
+    let expense = 0
+    for (const t of filteredTransactions) {
+      if (t.type === 'income') {
+        income += t.amount || 0
+      } else if (t.type === 'expense') {
+        expense += t.amount || 0
+      }
+    }
+    return {
+      totalIncome: income,
+      totalExpense: expense,
+      totalBalance: income - expense
+    }
+  }, [filteredTransactions])
 
   const formatCurrency = (value: number) => 
     new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
@@ -453,7 +475,6 @@ export function TransactionList({
                   value={serverMonth}
                   onChange={(e) => {
                     if (e.target.value) {
-                      setServerMonth(e.target.value)
                       updateServerPeriod('month', e.target.value)
                     }
                   }}
@@ -517,7 +538,6 @@ export function TransactionList({
           <Select
             value={serverDateField}
             onValueChange={(val: 'date' | 'due_date') => {
-              setServerDateField(val)
               updateServerPeriod(serverPeriodMode, serverMonth, customRangeStart, customRangeEnd, val)
             }}
           >
@@ -534,7 +554,6 @@ export function TransactionList({
           <Select
             value={serverPeriodMode}
             onValueChange={(val: 'month' | 'custom' | 'all') => {
-              setServerPeriodMode(val)
               updateServerPeriod(val, serverMonth, customRangeStart, customRangeEnd)
             }}
           >
@@ -581,7 +600,7 @@ export function TransactionList({
           onClick={() => setShowSecondaryFilters(!showSecondaryFilters)}
         >
           <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
-          <span>{showSecondaryFilters ? 'Ocultar Filtros' : 'Mais Filtros & Busca'}</span>
+          <span>{showSecondaryFilters ? 'Ocultar Filtros' : 'Filtros'}</span>
           {activeFiltersCount > 0 && (
             <span className="ml-1 inline-flex items-center justify-center h-4 min-w-[16px] px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
               {activeFiltersCount}
@@ -595,20 +614,7 @@ export function TransactionList({
             variant="ghost"
             size="sm"
             className="h-8 text-xs text-muted-foreground hover:text-foreground"
-            onClick={() => {
-              setSearchTerm('')
-              setFilterType('all')
-              setFilterPaidStatus('all')
-              setFilterCategory('all')
-              setFilterPayer('all')
-              setFilterCard('all')
-              setMinAmount('')
-              setMaxAmount('')
-              setStartDate('')
-              setEndDate('')
-              setDueStartDate('')
-              setDueEndDate('')
-            }}
+            onClick={() => resetFilters()}
           >
             Limpar {activeFiltersCount} filtro(s) ativo(s)
           </Button>
@@ -617,223 +623,217 @@ export function TransactionList({
 
       {/* Conteúdo Expansível: Filtros Secundários e Cards de Cartão */}
       <div className={`space-y-4 p-3.5 rounded-xl border bg-muted/20 transition-all ${showSecondaryFilters ? 'block' : 'hidden'}`}>
-        {/* Cards de Filtro Rápido de Cartões de Crédito */}
-          {cards.length > 0 && (
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between text-xs text-muted-foreground px-0.5">
-                <span className="flex items-center gap-1 font-medium">
-                  <CreditCard className="h-3.5 w-3.5 text-primary" /> Filtrar por cartão de crédito:
-                </span>
-                {filterCard !== 'all' && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
-                    onClick={() => setFilterCard('all')}
-                  >
-                    Limpar cartão
-                  </Button>
+        {/* Cards de Filtro Rápido de Cartões de Crédito com Seleção Múltipla */}
+        {cards.length > 0 && (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between text-xs text-muted-foreground px-0.5">
+              <span className="flex items-center gap-1 font-medium">
+                <CreditCard className="h-3.5 w-3.5 text-primary" /> Filtrar por cartão de crédito:
+                {selectedCardIds.length > 0 && (
+                  <span className="ml-1 text-[11px] text-primary font-semibold">({selectedCardIds.length} selecionado{selectedCardIds.length > 1 ? 's' : ''})</span>
                 )}
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setFilterCard('all')}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-left transition-all ${
-                    filterCard === 'all'
-                      ? 'border-primary bg-primary/10 shadow-xs ring-1 ring-primary'
-                      : 'bg-card hover:bg-muted/50 border-border/70'
-                  }`}
+              </span>
+              {selectedCardIds.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={handleSelectAllCards}
                 >
-                  <div className="h-5 w-5 rounded-md bg-muted flex items-center justify-center shrink-0">
-                    <CreditCard className="h-3 w-3 text-muted-foreground" />
-                  </div>
-                  <span className="text-xs font-semibold truncate leading-tight">Todos os cartões</span>
-                </button>
-
-                {cards.map((card) => {
-                  const isSelected = filterCard === card.id
-
-                  return (
-                    <button
-                      key={card.id}
-                      type="button"
-                      onClick={() => handleSelectCard(card.id)}
-                      className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-left transition-all ${
-                        isSelected
-                          ? 'border-primary bg-primary/10 shadow-xs ring-1 ring-primary'
-                          : 'bg-card hover:bg-muted/50 border-border/70'
-                      }`}
-                    >
-                      <div
-                        className="h-5 w-5 rounded-md flex items-center justify-center shrink-0 shadow-2xs"
-                        style={{ backgroundColor: card.color || '#3b82f6' }}
-                      >
-                        <CreditCard className="h-3 w-3 text-white" />
-                      </div>
-                      <span className="text-xs font-semibold truncate leading-tight" title={card.name}>
-                        {card.name}
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Barra de Busca e Filtros Rápidos (Status, Categorias, etc) */}
-          <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-border/50">
-            <Input 
-              placeholder="Buscar transações..." 
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="max-w-xs h-9 bg-card"
-            />
-            <Select value={filterPaidStatus} onValueChange={(val: 'all' | 'paid' | 'pending') => setFilterPaidStatus(val)}>
-              <SelectTrigger className="w-[145px] text-xs h-9 bg-card">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os status</SelectItem>
-                <SelectItem value="paid">Apenas Pagas</SelectItem>
-                <SelectItem value="pending">Apenas Pendentes</SelectItem>
-              </SelectContent>
-            </Select>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" size="icon" className="h-9 w-9 bg-card">
-                  <Filter className="h-4 w-4" />
+                  Limpar seleção
                 </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-80">
-                <div className="grid gap-4">
-                  <div className="space-y-2">
-                    <h4 className="font-medium leading-none">Filtros</h4>
-                    <p className="text-sm text-muted-foreground">Refine sua busca de transações.</p>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label>Tipo</Label>
-                    <Select value={filterType} onValueChange={setFilterType}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todos</SelectItem>
-                        <SelectItem value="income">Receitas</SelectItem>
-                        <SelectItem value="expense">Despesas</SelectItem>
-                      </SelectContent>
-                    </Select>
-
-                    <Label>Status do Pagamento</Label>
-                    <Select value={filterPaidStatus} onValueChange={(val: 'all' | 'paid' | 'pending') => setFilterPaidStatus(val)}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todos os status</SelectItem>
-                        <SelectItem value="paid">Apenas Pagas</SelectItem>
-                        <SelectItem value="pending">Apenas Pendentes</SelectItem>
-                      </SelectContent>
-                    </Select>
-
-                    <Label>Categoria</Label>
-                    <Select value={filterCategory} onValueChange={setFilterCategory}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todas</SelectItem>
-                        {filteredCategories.map(c => (
-                          <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-
-                    <Label>Pagador (Terceiros)</Label>
-                    <Select value={filterPayer} onValueChange={setFilterPayer}>
-                      <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Todos</SelectItem>
-                        {payers.map(p => (
-                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="grid gap-1">
-                      <Label className="text-xs">Valor Mín</Label>
-                      <Input type="number" placeholder="0.00" value={minAmount} onChange={e => setMinAmount(e.target.value)} />
-                    </div>
-                    <div className="grid gap-1">
-                      <Label className="text-xs">Valor Máx</Label>
-                      <Input type="number" placeholder="999.00" value={maxAmount} onChange={e => setMaxAmount(e.target.value)} />
-                    </div>
-                  </div>
-                  <div className="grid gap-2">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs text-muted-foreground">Período Rápido</Label>
-                      <Select value={quickPeriodTarget} onValueChange={(val: any) => setQuickPeriodTarget(val)}>
-                        <SelectTrigger className="h-6 text-xs w-[130px]"><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="date">Aplicar na Compra</SelectItem>
-                          <SelectItem value="due_date">Aplicar no Vencimento</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="flex flex-wrap gap-1">
-                      <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => {
-                        const d = new Date(); 
-                        if (quickPeriodTarget === 'date') { setStartDate(d.toISOString().split('T')[0]); setEndDate(d.toISOString().split('T')[0]); }
-                        else { setDueStartDate(d.toISOString().split('T')[0]); setDueEndDate(d.toISOString().split('T')[0]); }
-                      }}>Hoje</Button>
-                      <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => {
-                        const d = new Date(); d.setDate(d.getDate() - 1);
-                        if (quickPeriodTarget === 'date') { setStartDate(d.toISOString().split('T')[0]); setEndDate(d.toISOString().split('T')[0]); }
-                        else { setDueStartDate(d.toISOString().split('T')[0]); setDueEndDate(d.toISOString().split('T')[0]); }
-                      }}>Ontem</Button>
-                      <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => {
-                        const d = new Date(); const start = new Date(d); start.setDate(d.getDate() - d.getDay());
-                        const end = new Date(d); end.setDate(d.getDate() + (6 - d.getDay()));
-                        if (quickPeriodTarget === 'date') { setStartDate(start.toISOString().split('T')[0]); setEndDate(end.toISOString().split('T')[0]); }
-                        else { setDueStartDate(start.toISOString().split('T')[0]); setDueEndDate(end.toISOString().split('T')[0]); }
-                      }}>Esta Semana</Button>
-                      <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => {
-                        const d = new Date(); const start = new Date(d.getFullYear(), d.getMonth(), 1);
-                        const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-                        if (quickPeriodTarget === 'date') { setStartDate(start.toISOString().split('T')[0]); setEndDate(end.toISOString().split('T')[0]); }
-                        else { setDueStartDate(start.toISOString().split('T')[0]); setDueEndDate(end.toISOString().split('T')[0]); }
-                      }}>Este Mês</Button>
-                      <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => {
-                        const d = new Date(); const start = new Date(d.getFullYear(), 0, 1);
-                        const end = new Date(d.getFullYear(), 11, 31);
-                        if (quickPeriodTarget === 'date') { setStartDate(start.toISOString().split('T')[0]); setEndDate(end.toISOString().split('T')[0]); }
-                        else { setDueStartDate(start.toISOString().split('T')[0]); setDueEndDate(end.toISOString().split('T')[0]); }
-                      }}>Este Ano</Button>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="grid gap-1">
-                      <Label className="text-xs">Data Compra Início</Label>
-                      <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
-                    </div>
-                    <div className="grid gap-1">
-                      <Label className="text-xs">Data Compra Fim</Label>
-                      <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div className="grid gap-1">
-                      <Label className="text-xs">Vencimento Início</Label>
-                      <Input type="date" value={dueStartDate} onChange={e => setDueStartDate(e.target.value)} />
-                    </div>
-                    <div className="grid gap-1">
-                      <Label className="text-xs">Vencimento Fim</Label>
-                      <Input type="date" value={dueEndDate} onChange={e => setDueEndDate(e.target.value)} />
-                    </div>
-                  </div>
-                  <Button variant="ghost" size="sm" onClick={() => resetFilters()}>
-                    Limpar Filtros
-                  </Button>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={handleSelectAllCards}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-left transition-all ${
+                  selectedCardIds.length === 0
+                    ? 'border-primary bg-primary/10 shadow-xs ring-1 ring-primary font-bold'
+                    : 'bg-card hover:bg-muted/50 border-border/70 text-muted-foreground'
+                }`}
+              >
+                <div className="h-5 w-5 rounded-md bg-muted flex items-center justify-center shrink-0">
+                  <CreditCard className="h-3 w-3 text-muted-foreground" />
                 </div>
-              </PopoverContent>
-            </Popover>
+                <span className="text-xs font-semibold truncate leading-tight">Todos os cartões</span>
+              </button>
+
+              {cards.map((card) => {
+                const isSelected = selectedCardIds.includes(card.id)
+
+                return (
+                  <button
+                    key={card.id}
+                    type="button"
+                    onClick={() => handleToggleCard(card.id)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-left transition-all ${
+                      isSelected
+                        ? 'border-primary bg-primary/10 shadow-xs ring-1 ring-primary'
+                        : 'bg-card hover:bg-muted/50 border-border/70'
+                    }`}
+                  >
+                    <div
+                      className="h-5 w-5 rounded-md flex items-center justify-center shrink-0 shadow-2xs relative"
+                      style={{ backgroundColor: card.color || '#3b82f6' }}
+                    >
+                      <CreditCard className="h-3 w-3 text-white" />
+                      {isSelected && (
+                        <div className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-primary text-primary-foreground flex items-center justify-center text-[8px] font-bold">
+                          ✓
+                        </div>
+                      )}
+                    </div>
+                    <span className="text-xs font-semibold truncate leading-tight" title={card.name}>
+                      {card.name}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Barra de Busca e Filtros Avançados Integrados (fora da modal Popover) */}
+        <div className="pt-3 border-t border-border/50 space-y-3">
+          {/* Linha 1: Busca por texto, Tipo, Status do Pagamento, Categoria e Pagador */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-2.5">
+            <div className="space-y-1">
+              <Label className="text-xs">Buscar descrição</Label>
+              <Input 
+                placeholder="Buscar transações..." 
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="h-8.5 bg-card text-xs"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Tipo</Label>
+              <Select value={filterType} onValueChange={setFilterType}>
+                <SelectTrigger className="h-8.5 bg-card text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os tipos</SelectItem>
+                  <SelectItem value="income">Receitas</SelectItem>
+                  <SelectItem value="expense">Despesas</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Status Pagamento</Label>
+              <Select value={filterPaidStatus} onValueChange={(val: 'all' | 'paid' | 'pending') => setFilterPaidStatus(val)}>
+                <SelectTrigger className="h-8.5 bg-card text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os status</SelectItem>
+                  <SelectItem value="paid">Apenas Pagas</SelectItem>
+                  <SelectItem value="pending">Apenas Pendentes</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Categoria</Label>
+              <Select value={filterCategory} onValueChange={setFilterCategory}>
+                <SelectTrigger className="h-8.5 bg-card text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas as categorias</SelectItem>
+                  {filteredCategories.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Pagador (Terceiro)</Label>
+              <Select value={filterPayer} onValueChange={setFilterPayer}>
+                <SelectTrigger className="h-8.5 bg-card text-xs"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os terceiros</SelectItem>
+                  {payers.map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Linha 2: Valores e Intervalos de Datas Integrados */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2.5 pt-1 items-end">
+            <div className="space-y-1">
+              <Label className="text-xs">Valor Mín</Label>
+              <Input type="number" placeholder="0.00" value={minAmount} onChange={e => setMinAmount(e.target.value)} className="h-8.5 bg-card text-xs" />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Valor Máx</Label>
+              <Input type="number" placeholder="999.00" value={maxAmount} onChange={e => setMaxAmount(e.target.value)} className="h-8.5 bg-card text-xs" />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Compra De</Label>
+              <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="h-8.5 bg-card text-xs" />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Compra Até</Label>
+              <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="h-8.5 bg-card text-xs" />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Vencimento De</Label>
+              <Input type="date" value={dueStartDate} onChange={e => setDueStartDate(e.target.value)} className="h-8.5 bg-card text-xs" />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs">Vencimento Até</Label>
+              <Input type="date" value={dueEndDate} onChange={e => setDueEndDate(e.target.value)} className="h-8.5 bg-card text-xs" />
+            </div>
+          </div>
+
+          {/* Linha 3: Atalhos de Período Rápido e Botão Limpar Filtros */}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/40">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs text-muted-foreground mr-1 font-medium">Período rápido:</span>
+              <Select value={quickPeriodTarget} onValueChange={(val: any) => setQuickPeriodTarget(val)}>
+                <SelectTrigger className="h-7 text-xs w-[140px] bg-card"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="date">Na Compra</SelectItem>
+                  <SelectItem value="due_date">No Vencimento</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="sm" className="h-7 text-xs px-2.5 bg-card" onClick={() => {
+                const d = new Date(); 
+                if (quickPeriodTarget === 'date') { setStartDate(d.toISOString().split('T')[0]); setEndDate(d.toISOString().split('T')[0]); }
+                else { setDueStartDate(d.toISOString().split('T')[0]); setDueEndDate(d.toISOString().split('T')[0]); }
+              }}>Hoje</Button>
+              <Button variant="outline" size="sm" className="h-7 text-xs px-2.5 bg-card" onClick={() => {
+                const d = new Date(); d.setDate(d.getDate() - 1);
+                if (quickPeriodTarget === 'date') { setStartDate(d.toISOString().split('T')[0]); setEndDate(d.toISOString().split('T')[0]); }
+                else { setDueStartDate(d.toISOString().split('T')[0]); setDueEndDate(d.toISOString().split('T')[0]); }
+              }}>Ontem</Button>
+              <Button variant="outline" size="sm" className="h-7 text-xs px-2.5 bg-card" onClick={() => {
+                const d = new Date(); const start = new Date(d); start.setDate(d.getDate() - d.getDay());
+                const end = new Date(d); end.setDate(d.getDate() + (6 - d.getDay()));
+                if (quickPeriodTarget === 'date') { setStartDate(start.toISOString().split('T')[0]); setEndDate(end.toISOString().split('T')[0]); }
+                else { setDueStartDate(start.toISOString().split('T')[0]); setDueEndDate(end.toISOString().split('T')[0]); }
+              }}>Esta Semana</Button>
+              <Button variant="outline" size="sm" className="h-7 text-xs px-2.5 bg-card" onClick={() => {
+                const d = new Date(); const start = new Date(d.getFullYear(), d.getMonth(), 1);
+                const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+                if (quickPeriodTarget === 'date') { setStartDate(start.toISOString().split('T')[0]); setEndDate(end.toISOString().split('T')[0]); }
+                else { setDueStartDate(start.toISOString().split('T')[0]); setDueEndDate(end.toISOString().split('T')[0]); }
+              }}>Este Mês</Button>
+            </div>
+
+            <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-foreground" onClick={() => resetFilters()}>
+              <X className="h-3.5 w-3.5 mr-1" /> Limpar Filtros
+            </Button>
           </div>
         </div>
+      </div>
 
       {/* Barra de Ações Principais (Apenas Botões de Ação na Direita) */}
       <div className="flex flex-wrap items-center justify-end gap-2 w-full">
@@ -1072,104 +1072,23 @@ export function TransactionList({
               </TableRow>
             ) : (
               filteredTransactions.map((tx) => {
-                const isIncome = tx.type === 'income'
-                const formattedAmount = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(tx.amount)
-                
-                const dueDateDisplay = tx.due_date ? tx.due_date : tx.date
-                const purchaseDateDisplay = tx.date
+                const hasSplit = localSplitOverrides[tx.id] !== undefined 
+                  ? localSplitOverrides[tx.id] 
+                  : Boolean(tx.has_splits || (tx.splits_count && tx.splits_count > 0))
 
                 return (
-                  <TableRow key={tx.id}>
-                    <TableCell>
-                      <Checkbox 
-                        checked={selectedIds.includes(tx.id)}
-                        onCheckedChange={(c) => handleSelectRow(tx.id, !!c)}
-                      />
-                    </TableCell>
-                    <TableCell className="font-medium whitespace-nowrap">
-                      {format(new Date(dueDateDisplay + 'T12:00:00'), 'dd/MM/yyyy')}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground whitespace-nowrap text-xs">
-                      {format(new Date(purchaseDateDisplay + 'T12:00:00'), 'dd/MM/yyyy')}
-                    </TableCell>
-                    <TableCell className="font-medium">
-                      <div className="flex flex-col gap-1">
-                        <div className="flex items-center gap-2">
-                          {isIncome ? <ArrowUpCircle className="h-4 w-4 text-emerald-500 shrink-0" /> : <ArrowDownCircle className="h-4 w-4 text-rose-500 shrink-0" />}
-                          <span className="truncate">{tx.description}</span>
-                          {tx.installments > 1 && <span className="text-xs text-muted-foreground ml-1 shrink-0">({tx.installments}x)</span>}
-                        </div>
-                        {tx.payers && (
-                          <div className="flex items-center ml-6">
-                            <span className="inline-flex items-center rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-800">
-                              Pagador: {tx.payers.name}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      {tx.categories ? (
-                        <span className="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium" style={{ backgroundColor: `${tx.categories.color}20`, color: tx.categories.color }}>
-                          {tx.categories.name}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground text-xs italic">Sem categoria</span>
-                      )}
-                    </TableCell>
-                    <TableCell>
-                      <div className="text-sm">{tx.workspaces?.name}</div>
-                      {tx.credit_cards && <div className="text-xs text-muted-foreground">{tx.credit_cards.name}</div>}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center space-x-2">
-                        <Checkbox 
-                          checked={tx.is_paid} 
-                          onCheckedChange={() => handleTogglePaid(tx.id, tx.is_paid)} 
-                        />
-                        <span className={`text-sm ${tx.is_paid ? 'text-emerald-500 font-medium' : 'text-muted-foreground'}`}>
-                          {tx.is_paid ? 'Pago' : 'Pendente'}
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell className={`text-right font-bold ${isIncome ? 'text-emerald-500' : ''}`}>
-                      {isIncome ? '+' : '-'}{formattedAmount}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        {(() => {
-                          const hasSplit = localSplitOverrides[tx.id] !== undefined 
-                            ? localSplitOverrides[tx.id] 
-                            : Boolean(tx.has_splits || (tx.splits_count && tx.splits_count > 0))
-
-                          return (
-                            <Button 
-                              variant={hasSplit ? "secondary" : "ghost"} 
-                              size="icon" 
-                              onClick={() => setSplittingTx(tx)} 
-                              className={`h-8 w-8 transition-colors ${
-                                hasSplit 
-                                  ? 'bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-500/20 dark:text-amber-400 dark:hover:bg-amber-500/30' 
-                                  : 'text-muted-foreground hover:text-primary'
-                              }`} 
-                              title={hasSplit ? "Despesa com Rateio (Clique para gerenciar)" : "Ratear Despesa"}
-                            >
-                              <Split className="h-4 w-4" />
-                            </Button>
-                          )
-                        })()}
-                        <Button variant="ghost" size="icon" onClick={() => handleClone(tx)} className="text-muted-foreground h-8 w-8" title="Clonar">
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleEdit(tx)} className="text-muted-foreground h-8 w-8" title="Editar">
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => confirmDelete(tx)} className="text-destructive h-8 w-8" title="Deletar">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                  <DesktopTransactionRow
+                    key={tx.id}
+                    tx={tx}
+                    isSelected={selectedIds.includes(tx.id)}
+                    hasSplit={hasSplit}
+                    onSelectRow={handleSelectRow}
+                    onTogglePaid={handleTogglePaid}
+                    onSplit={handleOpenSplit}
+                    onClone={handleClone}
+                    onEdit={handleEdit}
+                    onDelete={confirmDelete}
+                  />
                 )
               })
             )}
@@ -1185,128 +1104,21 @@ export function TransactionList({
           </div>
         ) : (
           filteredTransactions.map((tx) => {
-            const isIncome = tx.type === 'income'
-            const formattedAmount = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(tx.amount)
-            const dueDateDisplay = tx.due_date ? tx.due_date : tx.date
             const hasSplit = localSplitOverrides[tx.id] !== undefined 
               ? localSplitOverrides[tx.id] 
               : Boolean(tx.has_splits || (tx.splits_count && tx.splits_count > 0))
 
             return (
-              <div
+              <MobileTransactionCard
                 key={tx.id}
-                className="rounded-xl border bg-card p-3 shadow-2xs space-y-2 transition-all w-full max-w-full overflow-hidden"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-start gap-2.5 min-w-0">
-                    <div className="mt-0.5 shrink-0" title={tx.is_paid ? 'Marcar como pendente' : 'Marcar como pago'}>
-                      <Checkbox 
-                        checked={tx.is_paid} 
-                        onCheckedChange={() => handleTogglePaid(tx.id, tx.is_paid)}
-                      />
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        {isIncome ? (
-                          <ArrowUpCircle className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                        ) : (
-                          <ArrowDownCircle className="h-3.5 w-3.5 text-rose-500 shrink-0" />
-                        )}
-                        <span className="font-semibold text-xs text-foreground truncate">
-                          {tx.description}
-                        </span>
-                        {tx.installments > 1 && (
-                          <span className="text-[10px] text-muted-foreground shrink-0 font-medium">
-                            ({tx.installments}x)
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-2 mt-1 flex-wrap text-[11px] text-muted-foreground">
-                        <span className="font-medium text-foreground/80">
-                          Venc: {format(new Date(dueDateDisplay + 'T12:00:00'), 'dd/MM/yy')}
-                        </span>
-                        {tx.credit_cards && (
-                          <span className="inline-flex items-center gap-1">
-                            • <span>{tx.credit_cards.name}</span>
-                          </span>
-                        )}
-                        {tx.payers && (
-                          <span className="inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-900/30 px-1.5 py-0.2 text-[9px] font-medium text-blue-800 dark:text-blue-300">
-                            {tx.payers.name}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="text-right shrink-0">
-                    <div className={`font-bold text-xs sm:text-sm ${isIncome ? 'text-emerald-500' : 'text-foreground'}`}>
-                      {isIncome ? '+' : '-'}{formattedAmount}
-                    </div>
-                    <div className="text-[10px] mt-0.5">
-                      <span className={`inline-block px-1.5 py-0.2 rounded-full font-medium ${tx.is_paid ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-muted text-muted-foreground'}`}>
-                        {tx.is_paid ? 'Pago' : 'Pendente'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between pt-1.5 border-t border-border/40 text-[10px]">
-                  <div>
-                    {tx.categories ? (
-                      <span
-                        className="inline-flex items-center rounded-full px-2 py-0.5 font-medium"
-                        style={{ backgroundColor: `${tx.categories.color}20`, color: tx.categories.color }}
-                      >
-                        {tx.categories.name}
-                      </span>
-                    ) : (
-                      <span className="text-muted-foreground italic">Sem categoria</span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-1">
-                    <Button 
-                      variant={hasSplit ? "secondary" : "ghost"} 
-                      size="icon" 
-                      onClick={() => setSplittingTx(tx)} 
-                      className="h-6 w-6 text-muted-foreground"
-                      title="Rateio"
-                    >
-                      <Split className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleClone(tx)}
-                      className="h-6 w-6 text-muted-foreground"
-                      title="Clonar"
-                    >
-                      <Copy className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleEdit(tx)}
-                      className="h-6 w-6 text-muted-foreground"
-                      title="Editar"
-                    >
-                      <Pencil className="h-3 w-3" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => confirmDelete(tx)}
-                      className="h-6 w-6 text-destructive"
-                      title="Deletar"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
-                </div>
-              </div>
+                tx={tx}
+                hasSplit={hasSplit}
+                onTogglePaid={handleTogglePaid}
+                onSplit={handleOpenSplit}
+                onClone={handleClone}
+                onEdit={handleEdit}
+                onDelete={confirmDelete}
+              />
             )
           })
         )}

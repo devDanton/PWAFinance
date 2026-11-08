@@ -29,7 +29,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
 import { toggleSplitPaid, markAllItemsPaid } from '@/app/actions/splits'
 import { toggleTransactionPaid } from '@/app/actions/transactions'
@@ -1139,6 +1139,9 @@ export function ReimbursementView({
             <DialogTitle className="flex items-center justify-between gap-2">
               <span>Comprovante: {previewPayer?.payerName}</span>
             </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Visualização e download do comprovante de acerto de contas.
+            </DialogDescription>
           </DialogHeader>
 
           {previewPayer && (
@@ -1343,6 +1346,9 @@ export function ReimbursementView({
             <DialogTitle className="flex items-center justify-between gap-2">
               <span>Comprovante Centralizado</span>
             </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Visualização consolidada de comprovante de acerto para múltiplos pagadores.
+            </DialogDescription>
           </DialogHeader>
 
           {previewMultiPayers && (

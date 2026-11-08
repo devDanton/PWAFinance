@@ -6,7 +6,7 @@ interface TransactionFiltersState {
   searchTerm: string
   filterType: string
   filterPaidStatus: 'all' | 'paid' | 'pending'
-  filterCard: string
+  selectedCardIds: string[]
   filterPayer: string
   filterCategory: string
   minAmount: string
@@ -15,13 +15,14 @@ interface TransactionFiltersState {
   endDate: string
   dueStartDate: string
   dueEndDate: string
+  sortPref: string
 }
 
 const defaultFilters: TransactionFiltersState = {
   searchTerm: '',
   filterType: 'all',
   filterPaidStatus: 'all',
-  filterCard: 'all',
+  selectedCardIds: [],
   filterPayer: 'all',
   filterCategory: 'all',
   minAmount: '',
@@ -30,6 +31,7 @@ const defaultFilters: TransactionFiltersState = {
   endDate: '',
   dueStartDate: '',
   dueEndDate: '',
+  sortPref: 'due_date:asc',
 }
 
 interface FilterContextType {
