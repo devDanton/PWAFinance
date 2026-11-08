@@ -18,7 +18,7 @@ export default async function TransactionsPage({ searchParams }: TransactionsPag
   const { data: { user } } = await supabase.auth.getUser()
 
   const { data: workspaces } = await supabase.from('workspaces').select('id, name')
-  const { data: cards } = await supabase.from('credit_cards').select('id, name, workspace_id')
+  const { data: cards } = await supabase.from('credit_cards').select('id, name, workspace_id, color, total_limit, due_day, closing_day')
   const { data: categories } = await supabase.from('categories').select('id, name, workspace_id, color')
   const { data: payers } = await supabase.from('payers').select('id, name, workspace_id')
   const { data: profile } = await supabase.from('profiles').select('transaction_sort_preference').eq('id', user?.id).single()

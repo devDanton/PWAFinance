@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Plus, Trash2, ArrowDownCircle, ArrowUpCircle, Pencil, Copy, ArrowUpDown, ArrowUp, ArrowDown, Filter, Download, Split, ChevronLeft, ChevronRight, Calendar, Loader2 } from 'lucide-react'
+import { Plus, Trash2, ArrowDownCircle, ArrowUpCircle, Pencil, Copy, ArrowUpDown, ArrowUp, ArrowDown, Filter, Download, Split, ChevronLeft, ChevronRight, Calendar, Loader2, CreditCard, ChevronDown, SlidersHorizontal, X } from 'lucide-react'
 import { format } from 'date-fns'
 import { useRouter, usePathname, useSearchParams } from 'next/navigation'
 import { createTransaction, deleteTransaction, toggleTransactionPaid, updateTransaction } from '@/app/actions/transactions'
@@ -131,6 +131,7 @@ export function TransactionList({
   const [searchTerm, setSearchTerm] = useState('')
   const [filterType, setFilterType] = useState<string>('all')
   const [filterPaidStatus, setFilterPaidStatus] = useState<'all' | 'paid' | 'pending'>('all')
+  const [filterCard, setFilterCard] = useState<string>('all')
   const [minAmount, setMinAmount] = useState<string>('')
   const [maxAmount, setMaxAmount] = useState<string>('')
   const [startDate, setStartDate] = useState<string>('')
@@ -147,6 +148,25 @@ export function TransactionList({
 
   // Recurrence UI state
   const [isRecurring, setIsRecurring] = useState(false)
+
+  // Toggle do acordeon/gaveta de filtros secundários
+  const [showSecondaryFilters, setShowSecondaryFilters] = useState(false)
+
+  // Conta quantos filtros secundários estão ativos
+  const activeFiltersCount = [
+    Boolean(searchTerm),
+    filterPaidStatus !== 'all',
+    filterType !== 'all',
+    filterCard !== 'all',
+    filterCategory !== 'all',
+    filterPayer !== 'all',
+    Boolean(minAmount),
+    Boolean(maxAmount),
+    Boolean(startDate),
+    Boolean(endDate),
+    Boolean(dueStartDate),
+    Boolean(dueEndDate)
+  ].filter(Boolean).length
 
   // Split Transaction state
   const [splittingTx, setSplittingTx] = useState<TransactionToSplit | null>(null)
@@ -173,6 +193,7 @@ export function TransactionList({
     if (filterType !== 'all' && tx.type !== filterType) return false
     if (filterPaidStatus === 'paid' && !tx.is_paid) return false
     if (filterPaidStatus === 'pending' && tx.is_paid) return false
+    if (filterCard !== 'all' && tx.credit_card_id !== filterCard) return false
     if (filterPayer !== 'all' && tx.payer_id !== filterPayer) return false
     if (filterCategory !== 'all' && tx.category_id !== filterCategory) return false
     
@@ -520,163 +541,290 @@ export function TransactionList({
         </div>
       </div>
 
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex flex-1 flex-wrap items-center gap-2">
-          <Input 
-            placeholder="Buscar transações..." 
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="max-w-xs"
-          />
-          <Select value={filterPaidStatus} onValueChange={(val: 'all' | 'paid' | 'pending') => setFilterPaidStatus(val)}>
-            <SelectTrigger className="w-[145px] text-xs h-9">
-              <SelectValue placeholder="Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Todos os status</SelectItem>
-              <SelectItem value="paid">Apenas Pagas</SelectItem>
-              <SelectItem value="pending">Apenas Pendentes</SelectItem>
-            </SelectContent>
-          </Select>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" size="icon" className="h-9 w-9">
-                <Filter className="h-4 w-4" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-80">
-              <div className="grid gap-4">
-                <div className="space-y-2">
-                  <h4 className="font-medium leading-none">Filtros</h4>
-                  <p className="text-sm text-muted-foreground">Refine sua busca de transações.</p>
-                </div>
-                <div className="grid gap-2">
-                  <Label>Tipo</Label>
-                  <Select value={filterType} onValueChange={setFilterType}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      <SelectItem value="income">Receitas</SelectItem>
-                      <SelectItem value="expense">Despesas</SelectItem>
-                    </SelectContent>
-                  </Select>
+      {/* Botão de Toggle para Filtros Secundários (Busca, Status, Cartões, Filtros Avançados) */}
+      <div className="flex items-center justify-between gap-2 pt-1">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-9 text-xs flex items-center gap-2 border-dashed font-medium"
+          onClick={() => setShowSecondaryFilters(!showSecondaryFilters)}
+        >
+          <SlidersHorizontal className="h-3.5 w-3.5 text-primary" />
+          <span>{showSecondaryFilters ? 'Ocultar Filtros' : 'Mais Filtros & Busca'}</span>
+          {activeFiltersCount > 0 && (
+            <span className="ml-1 inline-flex items-center justify-center h-4 min-w-[16px] px-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">
+              {activeFiltersCount}
+            </span>
+          )}
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${showSecondaryFilters ? 'rotate-180' : ''}`} />
+        </Button>
 
-                  <Label>Status do Pagamento</Label>
-                  <Select value={filterPaidStatus} onValueChange={(val: 'all' | 'paid' | 'pending') => setFilterPaidStatus(val)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos os status</SelectItem>
-                      <SelectItem value="paid">Apenas Pagas</SelectItem>
-                      <SelectItem value="pending">Apenas Pendentes</SelectItem>
-                    </SelectContent>
-                  </Select>
+        {activeFiltersCount > 0 && !showSecondaryFilters && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-8 text-xs text-muted-foreground hover:text-foreground"
+            onClick={() => {
+              setSearchTerm('')
+              setFilterType('all')
+              setFilterPaidStatus('all')
+              setFilterCategory('all')
+              setFilterPayer('all')
+              setFilterCard('all')
+              setMinAmount('')
+              setMaxAmount('')
+              setStartDate('')
+              setEndDate('')
+              setDueStartDate('')
+              setDueEndDate('')
+            }}
+          >
+            Limpar {activeFiltersCount} filtro(s) ativo(s)
+          </Button>
+        )}
+      </div>
 
-                  <Label>Categoria</Label>
-                  <Select value={filterCategory} onValueChange={setFilterCategory}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todas</SelectItem>
-                      {filteredCategories.map(c => (
-                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-
-                  <Label>Pagador (Terceiros)</Label>
-                  <Select value={filterPayer} onValueChange={setFilterPayer}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">Todos</SelectItem>
-                      {payers.map(p => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="grid gap-1">
-                    <Label className="text-xs">Valor Mín</Label>
-                    <Input type="number" placeholder="0.00" value={minAmount} onChange={e => setMinAmount(e.target.value)} />
+      {/* Conteúdo Expansível: Filtros Secundários e Cards de Cartão */}
+      {showSecondaryFilters && (
+        <div className="space-y-4 p-3.5 rounded-xl border bg-muted/20 animate-in fade-in-50 duration-200">
+          {/* Cards de Filtro Rápido de Cartões de Crédito */}
+          {cards.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between text-xs text-muted-foreground px-0.5">
+                <span className="flex items-center gap-1 font-medium">
+                  <CreditCard className="h-3.5 w-3.5 text-primary" /> Filtrar por cartão de crédito:
+                </span>
+                {filterCard !== 'all' && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground"
+                    onClick={() => setFilterCard('all')}
+                  >
+                    Limpar cartão
+                  </Button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFilterCard('all')}
+                  className={`flex items-center gap-2 p-2.5 rounded-lg border text-left transition-all ${
+                    filterCard === 'all'
+                      ? 'border-primary bg-primary/10 shadow-xs ring-1 ring-primary'
+                      : 'bg-card hover:bg-muted/50 border-border/70'
+                  }`}
+                >
+                  <div className="h-7 w-7 rounded-md bg-muted flex items-center justify-center shrink-0">
+                    <CreditCard className="h-3.5 w-3.5 text-muted-foreground" />
                   </div>
-                  <div className="grid gap-1">
-                    <Label className="text-xs">Valor Máx</Label>
-                    <Input type="number" placeholder="999.00" value={maxAmount} onChange={e => setMaxAmount(e.target.value)} />
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-semibold truncate leading-tight">Todos</div>
+                    <div className="text-[10px] text-muted-foreground truncate leading-tight">Todos cartões</div>
                   </div>
-                </div>
-                <div className="grid gap-2">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-xs text-muted-foreground">Período Rápido</Label>
-                    <Select value={quickPeriodTarget} onValueChange={(val: any) => setQuickPeriodTarget(val)}>
-                      <SelectTrigger className="h-6 text-xs w-[130px]"><SelectValue /></SelectTrigger>
+                </button>
+
+                {cards.map((card) => {
+                  const isSelected = filterCard === card.id
+                  const cardTxs = initialTransactions.filter(t => t.credit_card_id === card.id)
+                  const cardExpense = cardTxs
+                    .filter(t => t.type === 'expense')
+                    .reduce((sum, t) => sum + Number(t.amount || 0), 0)
+
+                  return (
+                    <button
+                      key={card.id}
+                      type="button"
+                      onClick={() => setFilterCard(isSelected ? 'all' : card.id)}
+                      className={`flex items-center gap-2 p-2.5 rounded-lg border text-left transition-all ${
+                        isSelected
+                          ? 'border-primary bg-primary/10 shadow-xs ring-1 ring-primary'
+                          : 'bg-card hover:bg-muted/50 border-border/70'
+                      }`}
+                    >
+                      <div
+                        className="h-7 w-7 rounded-md flex items-center justify-center shrink-0 shadow-2xs"
+                        style={{ backgroundColor: card.color || '#3b82f6' }}
+                      >
+                        <CreditCard className="h-3.5 w-3.5 text-white" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-xs font-semibold truncate leading-tight" title={card.name}>
+                          {card.name}
+                        </div>
+                        <div className="text-[10px] text-muted-foreground truncate leading-tight font-medium">
+                          {formatCurrency(cardExpense)}
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Barra de Busca e Filtros Rápidos (Status, Categorias, etc) */}
+          <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-border/50">
+            <Input 
+              placeholder="Buscar transações..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="max-w-xs h-9 bg-card"
+            />
+            <Select value={filterPaidStatus} onValueChange={(val: 'all' | 'paid' | 'pending') => setFilterPaidStatus(val)}>
+              <SelectTrigger className="w-[145px] text-xs h-9 bg-card">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os status</SelectItem>
+                <SelectItem value="paid">Apenas Pagas</SelectItem>
+                <SelectItem value="pending">Apenas Pendentes</SelectItem>
+              </SelectContent>
+            </Select>
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="icon" className="h-9 w-9 bg-card">
+                  <Filter className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-80">
+                <div className="grid gap-4">
+                  <div className="space-y-2">
+                    <h4 className="font-medium leading-none">Filtros</h4>
+                    <p className="text-sm text-muted-foreground">Refine sua busca de transações.</p>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Tipo</Label>
+                    <Select value={filterType} onValueChange={setFilterType}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="date">Aplicar na Compra</SelectItem>
-                        <SelectItem value="due_date">Aplicar no Vencimento</SelectItem>
+                        <SelectItem value="all">Todos</SelectItem>
+                        <SelectItem value="income">Receitas</SelectItem>
+                        <SelectItem value="expense">Despesas</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    <Label>Status do Pagamento</Label>
+                    <Select value={filterPaidStatus} onValueChange={(val: 'all' | 'paid' | 'pending') => setFilterPaidStatus(val)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos os status</SelectItem>
+                        <SelectItem value="paid">Apenas Pagas</SelectItem>
+                        <SelectItem value="pending">Apenas Pendentes</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    <Label>Categoria</Label>
+                    <Select value={filterCategory} onValueChange={setFilterCategory}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todas</SelectItem>
+                        {filteredCategories.map(c => (
+                          <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <Label>Pagador (Terceiros)</Label>
+                    <Select value={filterPayer} onValueChange={setFilterPayer}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Todos</SelectItem>
+                        {payers.map(p => (
+                          <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="flex flex-wrap gap-1">
-                    <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => {
-                      const d = new Date(); 
-                      if (quickPeriodTarget === 'date') { setStartDate(d.toISOString().split('T')[0]); setEndDate(d.toISOString().split('T')[0]); }
-                      else { setDueStartDate(d.toISOString().split('T')[0]); setDueEndDate(d.toISOString().split('T')[0]); }
-                    }}>Hoje</Button>
-                    <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => {
-                      const d = new Date(); d.setDate(d.getDate() - 1);
-                      if (quickPeriodTarget === 'date') { setStartDate(d.toISOString().split('T')[0]); setEndDate(d.toISOString().split('T')[0]); }
-                      else { setDueStartDate(d.toISOString().split('T')[0]); setDueEndDate(d.toISOString().split('T')[0]); }
-                    }}>Ontem</Button>
-                    <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => {
-                      const d = new Date(); const start = new Date(d); start.setDate(d.getDate() - d.getDay());
-                      const end = new Date(d); end.setDate(d.getDate() + (6 - d.getDay()));
-                      if (quickPeriodTarget === 'date') { setStartDate(start.toISOString().split('T')[0]); setEndDate(end.toISOString().split('T')[0]); }
-                      else { setDueStartDate(start.toISOString().split('T')[0]); setDueEndDate(end.toISOString().split('T')[0]); }
-                    }}>Esta Semana</Button>
-                    <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => {
-                      const d = new Date(); const start = new Date(d.getFullYear(), d.getMonth(), 1);
-                      const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
-                      if (quickPeriodTarget === 'date') { setStartDate(start.toISOString().split('T')[0]); setEndDate(end.toISOString().split('T')[0]); }
-                      else { setDueStartDate(start.toISOString().split('T')[0]); setDueEndDate(end.toISOString().split('T')[0]); }
-                    }}>Este Mês</Button>
-                    <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => {
-                      const d = new Date(); const start = new Date(d.getFullYear(), 0, 1);
-                      const end = new Date(d.getFullYear(), 11, 31);
-                      if (quickPeriodTarget === 'date') { setStartDate(start.toISOString().split('T')[0]); setEndDate(end.toISOString().split('T')[0]); }
-                      else { setDueStartDate(start.toISOString().split('T')[0]); setDueEndDate(end.toISOString().split('T')[0]); }
-                    }}>Este Ano</Button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="grid gap-1">
+                      <Label className="text-xs">Valor Mín</Label>
+                      <Input type="number" placeholder="0.00" value={minAmount} onChange={e => setMinAmount(e.target.value)} />
+                    </div>
+                    <div className="grid gap-1">
+                      <Label className="text-xs">Valor Máx</Label>
+                      <Input type="number" placeholder="999.00" value={maxAmount} onChange={e => setMaxAmount(e.target.value)} />
+                    </div>
                   </div>
+                  <div className="grid gap-2">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs text-muted-foreground">Período Rápido</Label>
+                      <Select value={quickPeriodTarget} onValueChange={(val: any) => setQuickPeriodTarget(val)}>
+                        <SelectTrigger className="h-6 text-xs w-[130px]"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="date">Aplicar na Compra</SelectItem>
+                          <SelectItem value="due_date">Aplicar no Vencimento</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => {
+                        const d = new Date(); 
+                        if (quickPeriodTarget === 'date') { setStartDate(d.toISOString().split('T')[0]); setEndDate(d.toISOString().split('T')[0]); }
+                        else { setDueStartDate(d.toISOString().split('T')[0]); setDueEndDate(d.toISOString().split('T')[0]); }
+                      }}>Hoje</Button>
+                      <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => {
+                        const d = new Date(); d.setDate(d.getDate() - 1);
+                        if (quickPeriodTarget === 'date') { setStartDate(d.toISOString().split('T')[0]); setEndDate(d.toISOString().split('T')[0]); }
+                        else { setDueStartDate(d.toISOString().split('T')[0]); setDueEndDate(d.toISOString().split('T')[0]); }
+                      }}>Ontem</Button>
+                      <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => {
+                        const d = new Date(); const start = new Date(d); start.setDate(d.getDate() - d.getDay());
+                        const end = new Date(d); end.setDate(d.getDate() + (6 - d.getDay()));
+                        if (quickPeriodTarget === 'date') { setStartDate(start.toISOString().split('T')[0]); setEndDate(end.toISOString().split('T')[0]); }
+                        else { setDueStartDate(start.toISOString().split('T')[0]); setDueEndDate(end.toISOString().split('T')[0]); }
+                      }}>Esta Semana</Button>
+                      <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => {
+                        const d = new Date(); const start = new Date(d.getFullYear(), d.getMonth(), 1);
+                        const end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+                        if (quickPeriodTarget === 'date') { setStartDate(start.toISOString().split('T')[0]); setEndDate(end.toISOString().split('T')[0]); }
+                        else { setDueStartDate(start.toISOString().split('T')[0]); setDueEndDate(end.toISOString().split('T')[0]); }
+                      }}>Este Mês</Button>
+                      <Button variant="outline" size="sm" className="h-7 text-xs px-2" onClick={() => {
+                        const d = new Date(); const start = new Date(d.getFullYear(), 0, 1);
+                        const end = new Date(d.getFullYear(), 11, 31);
+                        if (quickPeriodTarget === 'date') { setStartDate(start.toISOString().split('T')[0]); setEndDate(end.toISOString().split('T')[0]); }
+                        else { setDueStartDate(start.toISOString().split('T')[0]); setDueEndDate(end.toISOString().split('T')[0]); }
+                      }}>Este Ano</Button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="grid gap-1">
+                      <Label className="text-xs">Data Compra Início</Label>
+                      <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
+                    </div>
+                    <div className="grid gap-1">
+                      <Label className="text-xs">Data Compra Fim</Label>
+                      <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="grid gap-1">
+                      <Label className="text-xs">Vencimento Início</Label>
+                      <Input type="date" value={dueStartDate} onChange={e => setDueStartDate(e.target.value)} />
+                    </div>
+                    <div className="grid gap-1">
+                      <Label className="text-xs">Vencimento Fim</Label>
+                      <Input type="date" value={dueEndDate} onChange={e => setDueEndDate(e.target.value)} />
+                    </div>
+                  </div>
+                  <Button variant="ghost" size="sm" onClick={() => {
+                    setFilterType('all'); setFilterPaidStatus('all'); setFilterCategory('all'); setFilterPayer('all'); setFilterCard('all');
+                    setMinAmount(''); setMaxAmount(''); 
+                    setStartDate(''); setEndDate('');
+                    setDueStartDate(''); setDueEndDate('');
+                  }}>
+                    Limpar Filtros
+                  </Button>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="grid gap-1">
-                    <Label className="text-xs">Data Compra Início</Label>
-                    <Input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
-                  </div>
-                  <div className="grid gap-1">
-                    <Label className="text-xs">Data Compra Fim</Label>
-                    <Input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div className="grid gap-1">
-                    <Label className="text-xs">Vencimento Início</Label>
-                    <Input type="date" value={dueStartDate} onChange={e => setDueStartDate(e.target.value)} />
-                  </div>
-                  <div className="grid gap-1">
-                    <Label className="text-xs">Vencimento Fim</Label>
-                    <Input type="date" value={dueEndDate} onChange={e => setDueEndDate(e.target.value)} />
-                  </div>
-                </div>
-                <Button variant="ghost" size="sm" onClick={() => {
-                  setFilterType('all'); setFilterPaidStatus('all'); setFilterCategory('all'); setFilterPayer('all');
-                  setMinAmount(''); setMaxAmount(''); 
-                  setStartDate(''); setEndDate('');
-                  setDueStartDate(''); setDueEndDate('');
-                }}>
-                  Limpar Filtros
-                </Button>
-              </div>
-            </PopoverContent>
-          </Popover>
+              </PopoverContent>
+            </Popover>
+          </div>
         </div>
+      )}
+
+      {/* Barra de Ações Principais (Apenas Botões de Ação na Direita) */}
+      <div className="flex items-center justify-end gap-2">
 
         <div className="flex items-center gap-2">
           <Button
