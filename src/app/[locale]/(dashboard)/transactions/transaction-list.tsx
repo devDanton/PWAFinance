@@ -389,14 +389,14 @@ export function TransactionList({
   return (
     <div className="space-y-4">
       {/* Barra de Seleção de Período do Supabase */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-card p-3 rounded-xl border shadow-sm">
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 bg-card p-2.5 sm:p-3 rounded-xl border shadow-xs">
+        <div className="flex items-center justify-between sm:justify-start gap-1 w-full sm:w-auto">
           {serverPeriodMode === 'month' ? (
-            <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-lg">
+            <div className="flex items-center justify-between w-full sm:w-auto gap-1 bg-muted/60 p-1 rounded-lg">
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-md"
+                className="h-7 w-7 sm:h-8 sm:w-8 rounded-md shrink-0"
                 onClick={handlePrevMonth}
                 disabled={isPending}
                 title="Mês anterior"
@@ -404,9 +404,9 @@ export function TransactionList({
                 <ChevronLeft className="h-4 w-4" />
               </Button>
 
-              <div className="flex items-center gap-1.5 px-2">
-                <Calendar className="h-4 w-4 text-primary" />
-                <span className="font-semibold text-sm min-w-[130px] text-center">
+              <div className="flex items-center justify-center gap-1.5 px-2 flex-1 sm:flex-none">
+                <Calendar className="h-3.5 w-3.5 text-primary shrink-0" />
+                <span className="font-semibold text-xs sm:text-sm min-w-[110px] sm:min-w-[130px] text-center truncate">
                   {getMonthLabel(serverMonth)}
                 </span>
                 <input
@@ -426,7 +426,7 @@ export function TransactionList({
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-8 w-8 rounded-md"
+                className="h-7 w-7 sm:h-8 sm:w-8 rounded-md shrink-0"
                 onClick={handleNextMonth}
                 disabled={isPending}
                 title="Próximo mês"
@@ -435,45 +435,45 @@ export function TransactionList({
               </Button>
             </div>
           ) : serverPeriodMode === 'custom' ? (
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="font-semibold text-sm flex items-center gap-1">
-                <Calendar className="h-4 w-4 text-primary" /> Período Personalizado:
+            <div className="flex flex-wrap items-center gap-1.5 text-xs w-full sm:w-auto">
+              <span className="font-semibold text-xs flex items-center gap-1">
+                <Calendar className="h-3.5 w-3.5 text-primary" /> Período:
               </span>
               <Input
                 type="date"
                 value={customRangeStart}
                 onChange={(e) => setCustomRangeStart(e.target.value)}
-                className="h-8 w-32 text-xs"
+                className="h-7 sm:h-8 w-28 sm:w-32 text-xs"
               />
-              <span>até</span>
+              <span>-</span>
               <Input
                 type="date"
                 value={customRangeEnd}
                 onChange={(e) => setCustomRangeEnd(e.target.value)}
-                className="h-8 w-32 text-xs"
+                className="h-7 sm:h-8 w-28 sm:w-32 text-xs"
               />
               <Button
                 size="sm"
-                className="h-8 text-xs"
+                className="h-7 sm:h-8 text-xs px-2.5"
                 onClick={() => updateServerPeriod('custom', undefined, customRangeStart, customRangeEnd)}
                 disabled={isPending}
               >
-                Aplicar
+                OK
               </Button>
             </div>
           ) : (
-            <div className="flex items-center gap-1.5 px-2">
-              <Calendar className="h-4 w-4 text-primary" />
-              <span className="font-semibold text-sm">Visualizando Todas as Transações</span>
+            <div className="flex items-center gap-1.5 px-2 py-1">
+              <Calendar className="h-3.5 w-3.5 text-primary" />
+              <span className="font-semibold text-xs sm:text-sm">Todas as Transações</span>
             </div>
           )}
 
           {isPending && (
-            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground ml-1" />
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground ml-1 shrink-0" />
           )}
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
           {/* Campo de referência: Compra ou Vencimento */}
           <Select
             value={serverDateField}
@@ -482,27 +482,14 @@ export function TransactionList({
               updateServerPeriod(serverPeriodMode, serverMonth, customRangeStart, customRangeEnd, val)
             }}
           >
-            <SelectTrigger className="h-8 text-xs w-[135px]">
+            <SelectTrigger className="h-8 text-xs w-full sm:w-[135px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="date">Data da Compra</SelectItem>
-              <SelectItem value="due_date">Data de Vencimento</SelectItem>
+              <SelectItem value="due_date">Vencimento</SelectItem>
+              <SelectItem value="date">Compra</SelectItem>
             </SelectContent>
           </Select>
-
-          {/* Atalho Mês Atual */}
-          {serverPeriodMode === 'month' && serverMonth !== todayDate.slice(0, 7) && (
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 text-xs"
-              onClick={handleCurrentMonth}
-              disabled={isPending}
-            >
-              Mês Atual
-            </Button>
-          )}
 
           {/* Seletor de Modo: Mês / Customizado / Todas */}
           <Select
@@ -512,7 +499,7 @@ export function TransactionList({
               updateServerPeriod(val, serverMonth, customRangeStart, customRangeEnd)
             }}
           >
-            <SelectTrigger className="h-8 text-xs w-[120px]">
+            <SelectTrigger className="h-8 text-xs w-full sm:w-[110px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -524,18 +511,23 @@ export function TransactionList({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div className="rounded-lg border bg-card p-4 shadow-sm">
-          <div className="text-sm font-medium text-muted-foreground">Receitas</div>
-          <div className="text-2xl font-bold text-emerald-500">{formatCurrency(totalIncome)}</div>
+      {/* Cards de Métricas Compactos no Mobile */}
+      <div className="grid grid-cols-3 gap-2 sm:gap-4">
+        <div className="rounded-lg border bg-card p-2 sm:p-4 shadow-2xs">
+          <div className="text-[11px] sm:text-sm font-medium text-muted-foreground truncate">Receitas</div>
+          <div className="text-xs sm:text-lg md:text-2xl font-bold text-emerald-500 truncate">
+            {formatCurrency(totalIncome)}
+          </div>
         </div>
-        <div className="rounded-lg border bg-card p-4 shadow-sm">
-          <div className="text-sm font-medium text-muted-foreground">Despesas</div>
-          <div className="text-2xl font-bold text-rose-500">{formatCurrency(totalExpense)}</div>
+        <div className="rounded-lg border bg-card p-2 sm:p-4 shadow-2xs">
+          <div className="text-[11px] sm:text-sm font-medium text-muted-foreground truncate">Despesas</div>
+          <div className="text-xs sm:text-lg md:text-2xl font-bold text-rose-500 truncate">
+            {formatCurrency(totalExpense)}
+          </div>
         </div>
-        <div className="rounded-lg border bg-card p-4 shadow-sm">
-          <div className="text-sm font-medium text-muted-foreground">Saldo</div>
-          <div className={`text-2xl font-bold ${totalBalance >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+        <div className="rounded-lg border bg-card p-2 sm:p-4 shadow-2xs">
+          <div className="text-[11px] sm:text-sm font-medium text-muted-foreground truncate">Saldo</div>
+          <div className={`text-xs sm:text-lg md:text-2xl font-bold truncate ${totalBalance >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
             {formatCurrency(totalBalance)}
           </div>
         </div>
@@ -1009,7 +1001,8 @@ export function TransactionList({
         </Dialog>
       </div>
 
-      <div className="rounded-md border bg-card text-card-foreground shadow-sm">
+      {/* VISÃO DESKTOP: Tabela tradicional completa */}
+      <div className="hidden md:block rounded-md border bg-card text-card-foreground shadow-sm overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -1073,9 +1066,9 @@ export function TransactionList({
                     <TableCell className="font-medium">
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-2">
-                          {isIncome ? <ArrowUpCircle className="h-4 w-4 text-emerald-500" /> : <ArrowDownCircle className="h-4 w-4 text-rose-500" />}
-                          {tx.description}
-                          {tx.installments > 1 && <span className="text-xs text-muted-foreground ml-1">({tx.installments}x)</span>}
+                          {isIncome ? <ArrowUpCircle className="h-4 w-4 text-emerald-500 shrink-0" /> : <ArrowDownCircle className="h-4 w-4 text-rose-500 shrink-0" />}
+                          <span className="truncate">{tx.description}</span>
+                          {tx.installments > 1 && <span className="text-xs text-muted-foreground ml-1 shrink-0">({tx.installments}x)</span>}
                         </div>
                         {tx.payers && (
                           <div className="flex items-center ml-6">
@@ -1153,6 +1146,143 @@ export function TransactionList({
             )}
           </TableBody>
         </Table>
+      </div>
+
+      {/* VISÃO MOBILE: Lista em Cards Compactos Estilo PWA/App Bancário */}
+      <div className="block md:hidden space-y-2">
+        {filteredTransactions.length === 0 ? (
+          <div className="rounded-xl border bg-card p-6 text-center text-xs text-muted-foreground">
+            Nenhuma transação encontrada.
+          </div>
+        ) : (
+          filteredTransactions.map((tx) => {
+            const isIncome = tx.type === 'income'
+            const formattedAmount = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(tx.amount)
+            const dueDateDisplay = tx.due_date ? tx.due_date : tx.date
+            const hasSplit = localSplitOverrides[tx.id] !== undefined 
+              ? localSplitOverrides[tx.id] 
+              : Boolean(tx.has_splits || (tx.splits_count && tx.splits_count > 0))
+
+            return (
+              <div
+                key={tx.id}
+                className="rounded-xl border bg-card p-3 shadow-2xs space-y-2 transition-all"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-2.5 min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => handleTogglePaid(tx.id, tx.is_paid)}
+                      className="mt-0.5 shrink-0"
+                      title={tx.is_paid ? 'Marcar como pendente' : 'Marcar como pago'}
+                    >
+                      <Checkbox checked={tx.is_paid} />
+                    </button>
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {isIncome ? (
+                          <ArrowUpCircle className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                        ) : (
+                          <ArrowDownCircle className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+                        )}
+                        <span className="font-semibold text-xs text-foreground truncate">
+                          {tx.description}
+                        </span>
+                        {tx.installments > 1 && (
+                          <span className="text-[10px] text-muted-foreground shrink-0 font-medium">
+                            ({tx.installments}x)
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2 mt-1 flex-wrap text-[11px] text-muted-foreground">
+                        <span className="font-medium text-foreground/80">
+                          Venc: {format(new Date(dueDateDisplay + 'T12:00:00'), 'dd/MM/yy')}
+                        </span>
+                        {tx.credit_cards && (
+                          <span className="inline-flex items-center gap-1">
+                            • <span>{tx.credit_cards.name}</span>
+                          </span>
+                        )}
+                        {tx.payers && (
+                          <span className="inline-flex items-center rounded-full bg-blue-100 dark:bg-blue-900/30 px-1.5 py-0.2 text-[9px] font-medium text-blue-800 dark:text-blue-300">
+                            {tx.payers.name}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="text-right shrink-0">
+                    <div className={`font-bold text-xs sm:text-sm ${isIncome ? 'text-emerald-500' : 'text-foreground'}`}>
+                      {isIncome ? '+' : '-'}{formattedAmount}
+                    </div>
+                    <div className="text-[10px] mt-0.5">
+                      <span className={`inline-block px-1.5 py-0.2 rounded-full font-medium ${tx.is_paid ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' : 'bg-muted text-muted-foreground'}`}>
+                        {tx.is_paid ? 'Pago' : 'Pendente'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-1.5 border-t border-border/40 text-[10px]">
+                  <div>
+                    {tx.categories ? (
+                      <span
+                        className="inline-flex items-center rounded-full px-2 py-0.5 font-medium"
+                        style={{ backgroundColor: `${tx.categories.color}20`, color: tx.categories.color }}
+                      >
+                        {tx.categories.name}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground italic">Sem categoria</span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <Button 
+                      variant={hasSplit ? "secondary" : "ghost"} 
+                      size="icon" 
+                      onClick={() => setSplittingTx(tx)} 
+                      className="h-6 w-6 text-muted-foreground"
+                      title="Rateio"
+                    >
+                      <Split className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleClone(tx)}
+                      className="h-6 w-6 text-muted-foreground"
+                      title="Clonar"
+                    >
+                      <Copy className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleEdit(tx)}
+                      className="h-6 w-6 text-muted-foreground"
+                      title="Editar"
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => confirmDelete(tx)}
+                      className="h-6 w-6 text-destructive"
+                      title="Deletar"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )
+          })
+        )}
       </div>
       <BulkActionsBar 
         selectedIds={selectedIds} 
