@@ -111,7 +111,7 @@ export function CardList({ initialCards, workspaces }: { initialCards: any[], wo
         </Dialog>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-2 md:grid-cols-2 lg:grid-cols-3 gap-2.5 sm:gap-4">
         {initialCards.length === 0 ? (
           <div className="col-span-full text-center text-muted-foreground py-12">
             Nenhum cartão cadastrado.
@@ -125,46 +125,71 @@ export function CardList({ initialCards, workspaces }: { initialCards: any[], wo
             const buttonHoverBg = isDarkText ? 'hover:bg-black/10' : 'hover:bg-white/20'
 
             return (
-              <Card key={card.id} className="relative overflow-hidden transition-all hover:shadow-md" style={{ backgroundColor: bgColor, color: textColor }}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 pr-12">
-                  <CardTitle className="text-xl font-bold flex items-center gap-2">
-                    <CreditCard className="h-5 w-5" style={{ color: textColor }} />
-                    {card.name}
-                  </CardTitle>
-                  <div className="absolute top-4 right-4 flex gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => handleEdit(card)} className={`${buttonHoverBg} h-8 w-8`} style={{ color: textColor }}>
-                      <Pencil className="h-4 w-4" />
+              <Card 
+                key={card.id} 
+                className="relative overflow-hidden transition-all hover:shadow-md rounded-xl p-2.5 sm:p-5 flex flex-col justify-between" 
+                style={{ backgroundColor: bgColor, color: textColor }}
+              >
+                {/* Cabeçalho do Cartão */}
+                <div className="flex items-start justify-between gap-1 pb-1 sm:pb-2">
+                  <div className="flex items-center gap-1.5 min-w-0 pr-1">
+                    <CreditCard className="h-4 w-4 sm:h-5 sm:w-5 shrink-0" style={{ color: textColor }} />
+                    <span className="font-bold text-xs sm:text-lg truncate">
+                      {card.name}
+                    </span>
+                  </div>
+                  <div className="flex items-center shrink-0 -mr-1 -mt-1">
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => handleEdit(card)} 
+                      className={`${buttonHoverBg} h-6 w-6 sm:h-8 sm:w-8 p-0`} 
+                      style={{ color: textColor }}
+                    >
+                      <Pencil className="h-3 w-3 sm:h-4 sm:w-4" />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(card.id)} className={`${buttonHoverBg} h-8 w-8`} style={{ color: textColor }}>
-                      <Trash2 className="h-4 w-4" />
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      onClick={() => handleDelete(card.id)} 
+                      className={`${buttonHoverBg} h-6 w-6 sm:h-8 sm:w-8 p-0`} 
+                      style={{ color: textColor }}
+                    >
+                      <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
                     </Button>
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-1">
-                    <div className="flex justify-between items-center text-sm" style={{ opacity: 0.9 }}>
-                      <span>Limite Total:</span>
-                      <span className="font-bold text-lg">{formattedLimit}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm">
-                      <span style={{ opacity: 0.9 }}>Utilizado:</span>
-                      <span className="font-bold">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(card.limit_used || 0)}</span>
-                    </div>
-                    <div className="flex justify-between items-center text-sm">
-                      <span style={{ opacity: 0.9 }}>Disponível:</span>
-                      <span className="font-bold">{new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(card.limit_available || card.total_limit)}</span>
-                    </div>
+                </div>
+
+                {/* Métricas de Limite */}
+                <div className="space-y-1 sm:space-y-1.5 my-1 sm:my-2">
+                  <div className="flex justify-between items-center text-[10px] sm:text-sm" style={{ opacity: 0.9 }}>
+                    <span className="truncate">Limite:</span>
+                    <span className="font-bold text-xs sm:text-base ml-1 shrink-0">{formattedLimit}</span>
                   </div>
-                  <div className="pt-3 border-t border-current/20 flex flex-col gap-1">
-                    <p className="text-xs" style={{ opacity: 0.8 }}>
-                      Workspace: {card.workspaces?.name}
-                    </p>
+                  <div className="flex justify-between items-center text-[10px] sm:text-sm">
+                    <span className="truncate" style={{ opacity: 0.9 }}>Usado:</span>
+                    <span className="font-bold text-[11px] sm:text-sm ml-1 shrink-0">
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(card.limit_used || 0)}
+                    </span>
                   </div>
-                  <div className="mt-4 flex items-center justify-between text-sm" style={{ opacity: 0.9 }}>
-                    <div>Fechamento: Dia {card.closing_day}</div>
-                    <div>Vencimento: Dia {card.due_day}</div>
+                  <div className="flex justify-between items-center text-[10px] sm:text-sm">
+                    <span className="truncate" style={{ opacity: 0.9 }}>Disp:</span>
+                    <span className="font-bold text-[11px] sm:text-sm ml-1 shrink-0">
+                      {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(card.limit_available || card.total_limit)}
+                    </span>
                   </div>
-                </CardContent>
+                </div>
+
+                {/* Rodapé: Workspace e Datas de Fechamento/Vencimento */}
+                <div className="pt-1.5 sm:pt-3 border-t border-current/20 flex flex-col gap-0.5 sm:gap-1 text-[9px] sm:text-xs">
+                  <p className="truncate" style={{ opacity: 0.85 }}>
+                    {card.workspaces?.name}
+                  </p>
+                  <div className="flex items-center justify-between mt-0.5" style={{ opacity: 0.9 }}>
+                    <span>F: {card.closing_day}</span>
+                    <span>V: {card.due_day}</span>
+                  </div>
+                </div>
               </Card>
             )
           })

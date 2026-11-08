@@ -624,50 +624,44 @@ export function ReimbursementView({
       </div>
 
       {/* 2. Cards de Totais Gerais */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card className="border-amber-500/30 bg-amber-500/5">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Pendente a Receber</CardTitle>
-            <Clock className="h-4 w-4 text-amber-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
-              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(grandTotalPending)}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Despesas de terceiros ainda não reembolsadas
-            </p>
-          </CardContent>
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5 sm:gap-4">
+        <Card className="border-amber-500/30 bg-amber-500/5 p-3 sm:p-5">
+          <div className="flex items-center justify-between pb-1 sm:pb-2">
+            <span className="text-xs sm:text-sm font-medium text-amber-700 dark:text-amber-400 truncate">Total Pendente</span>
+            <Clock className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-amber-500 shrink-0" />
+          </div>
+          <div className="text-sm sm:text-2xl font-bold text-amber-600 dark:text-amber-400 truncate">
+            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(grandTotalPending)}
+          </div>
+          <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 truncate hidden sm:block">
+            Despesas de terceiros ainda não reembolsadas
+          </p>
         </Card>
 
-        <Card className="border-emerald-500/30 bg-emerald-500/5">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total já Reembolsado</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(grandTotalPaid)}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              Valores já quitados neste mês
-            </p>
-          </CardContent>
+        <Card className="border-emerald-500/30 bg-emerald-500/5 p-3 sm:p-5">
+          <div className="flex items-center justify-between pb-1 sm:pb-2">
+            <span className="text-xs sm:text-sm font-medium text-emerald-700 dark:text-emerald-400 truncate">Já Reembolsado</span>
+            <CheckCircle2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-500 shrink-0" />
+          </div>
+          <div className="text-sm sm:text-2xl font-bold text-emerald-600 dark:text-emerald-400 truncate">
+            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(grandTotalPaid)}
+          </div>
+          <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 truncate hidden sm:block">
+            Valores já quitados neste mês
+          </p>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Geral de Terceiros</CardTitle>
-            <HandCoins className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(grandTotalAmount)}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">
-              {payerList.length} pessoa(s) com gastos no período
-            </p>
-          </CardContent>
+        <Card className="col-span-2 md:col-span-1 p-3 sm:p-5">
+          <div className="flex items-center justify-between pb-1 sm:pb-2">
+            <span className="text-xs sm:text-sm font-medium truncate">Total de Terceiros</span>
+            <HandCoins className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground shrink-0" />
+          </div>
+          <div className="text-sm sm:text-2xl font-bold truncate">
+            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(grandTotalAmount)}
+          </div>
+          <p className="text-[10px] sm:text-xs text-muted-foreground mt-0.5 sm:mt-1 truncate">
+            {payerList.length} pessoa(s) com gastos
+          </p>
         </Card>
       </div>
 
